@@ -148,6 +148,8 @@ public final class Aura extends Module {
     private final HolyWorldRotationMode holyWorldRotationMode;
     private final SlothAcRotationMode slothAcRotationMode;
     private final BezierRotationMode bezierRotationMode;
+    private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
+private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
     public int attackCooldown;
     public int sprintTicks;
     public int hitCounter;
@@ -611,18 +613,17 @@ public final class Aura extends Module {
         return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity) - livingEntity.getItemUseTimeLeft() >= i;
     }
 
-    public RotationMode getRotationMode() throws MatchException {
-        return switch ((AuraRotationMode) this.rotationMode.currentValue()) {
-            case FUNTIME -> this.funtimeRotationMode;
-            case SPOOKYTIME -> this.spookyTimeRotationMode;
-            case SMOOTH -> this.smoothRotationMode;
-            case GRIM -> this.grimRotationMode;
-            case HOLYWORLD -> this.holyWorldRotationMode;
-            case SLOTH_AC -> this.slothAcRotationMode;
-            case BEZIER -> this.bezierRotationMode;
-        };
-    }
-
+public RotationMode getRotationMode() throws MatchException {
+    return switch ((AuraRotationMode) this.rotationMode.currentValue()) {
+        case FUNTIME -> this.funtimeRotationMode;
+        case SPOOKYTIME -> this.spookyTimeRotationMode;
+        case SMOOTH -> this.smoothRotationMode;
+        case GRIM -> this.grimRotationMode;
+        case HOLYWORLD -> this.holyWorldRotationMode;
+        case SLOTH_AC -> this.slothAcRotationMode;
+        case BEZIER -> this.bezierRotationMode;
+    };
+}
     public LivingEntity findTarget(ClientPlayerEntity clientPlayerEntity, boolean z) {
         float fCurrentValue = this.maxDistance.currentValue() + this.extraDistance.currentValue();
         boolean maceDiveTargeting = canStartMaceDiveTargeting(clientPlayerEntity);
