@@ -16,7 +16,7 @@ import net.minecraft.util.math.Vec3d;
 
 public class HolyWorldRotationMode extends RotationMode {
     public HolyWorldRotationMode() {
-        super("Holy World");
+        super("Хуйня не используйте");
     }
 
     @Override
