@@ -1,0 +1,140 @@
+plugins {
+    id "java"
+    id "net.fabricmc.fabric-loom-remap" version "${loom_version}"
+    id "maven-publish"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+        name = "ViaVersion"
+        url = "https://repo.viaversion.com"
+    }
+}
+
+configurations {
+    performanceMods
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    modImplementation "maven.modrinth:AANobbMI:Ny3XyYle"
+    modImplementation "maven.modrinth:gvQqBUqZ:Ow7wA0kG"
+    modImplementation "maven.modrinth:cudtvDnd:U7tHV3dB"
+    include "maven.modrinth:AANobbMI:Ny3XyYle"
+    include "maven.modrinth:gvQqBUqZ:Ow7wA0kG"
+    include "maven.modrinth:cudtvDnd:U7tHV3dB"
+    performanceMods "maven.modrinth:AANobbMI:Ny3XyYle"
+    performanceMods "maven.modrinth:gvQqBUqZ:Ow7wA0kG"
+
+    // Bundled support classes are retained under resources because they came
+    // embedded in the original mod. Put that directory on javac's classpath
+    // as well, so moving the recovered project does not break compilation.
+    compileOnly files("src/main/resources")
+    compileOnly("com.viaversion:viafabricplus-api:4.0.0") {
+        transitive = false
+    }
+    compileOnly "com.viaversion:viaversion-api:5.0.4"
+    compileOnly "org.projectlombok:lombok:1.18.46"
+    annotationProcessor "org.projectlombok:lombok:1.18.46"
+    compileOnly "org.jetbrains:annotations:26.0.2"
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/matebal.accesswidener")
+
+    mods {
+        "zov" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    runs {
+        client {
+            vmArg "-Dfabric.addMods=@${layout.buildDirectory.file("loom-cache/fabric-add-mods.txt").get().asFile.absolutePath}"
+            if (project.hasProperty("quickServer")) {
+                programArgs "--quickPlayMultiplayer", project.property("quickServer")
+            }
+        }
+    }
+}
+
+def fabricAddModsFile = layout.buildDirectory.file("loom-cache/fabric-add-mods.txt")
+
+tasks.register("writeFabricAddMods") {
+    outputs.file fabricAddModsFile
+
+    doLast {
+        // fabric-loom-remap keeps mod dependencies on the launch classpath but
+        // Fabric Loader still needs their paths as mod candidates. The original
+        // aggregate Fabric API jar contains all nested modules and Loader remaps
+        // them together into the development namespace.
+        def files = (configurations.modImplementation.copyRecursive().files + configurations.performanceMods.files).findAll {
+            it.isFile() && (
+                    it.name == "fabric-loader-${project.loader_version}.jar"
+                            || it.name == "fabric-api-${project.fabric_api_version}.jar"
+                            || it.name.startsWith("sodium-fabric-")
+                            || it.name.startsWith("lithium-fabric-")
+                            || it.name == "AANobbMI-Ny3XyYle.jar"
+                            || it.name == "gvQqBUqZ-Ow7wA0kG.jar"
+            )
+        }.unique { it.canonicalPath }.sort { a, b -> a.absolutePath <=> b.absolutePath }
+
+        if (files.size() != 4) {
+            throw new GradleException("Expected Fabric Loader, Fabric API, Sodium and Lithium, found: ${files}")
+        }
+
+        def output = fabricAddModsFile.get().asFile
+        output.parentFile.mkdirs()
+        output.text = files.collect { it.canonicalPath }.join(System.lineSeparator())
+    }
+}
+
+tasks.named("runClient") {
+    dependsOn "writeFabricAddMods"
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release = 21
+    options.annotationProcessorPath = configurations.annotationProcessor
+    options.compilerArgs.addAll([
+        "-Xmaxerrs", "1000",
+        "-processor", "lombok.launch.AnnotationProcessorHider\$AnnotationProcessor"
+    ])
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
