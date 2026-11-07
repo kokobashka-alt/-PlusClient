@@ -129,7 +129,7 @@ public class ModuleRepository {
          new AutoBuy(),
          new ServerRPSpoofer(),
          new AutoCart(),
-         new AutoGApple(),
+         new AutoGApple()
       );
    }
 
