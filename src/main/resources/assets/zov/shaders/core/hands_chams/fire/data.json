@@ -1,0 +1,8 @@
+{
+  "vertex": "zov:core/hands_chams/fullscreen",
+  "fragment": "zov:core/hands_chams/fire/fragment",
+  "samplers": [
+    {"name": "BloomSampler"},
+    {"name": "MaskSampler"}
+  ]
+}

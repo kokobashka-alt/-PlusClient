@@ -1,0 +1,15 @@
+package ru.zov.implement.features.modules.combat.killaura.event;
+
+import net.minecraft.network.packet.Packet;
+
+public class PacketSendEvent extends CancellableEvent {
+    public final Packet<?> packet;
+
+    public Packet<?> getPacket() {
+        return this.packet;
+    }
+
+    public PacketSendEvent(Packet<?> packet) {
+        this.packet = packet;
+    }
+}

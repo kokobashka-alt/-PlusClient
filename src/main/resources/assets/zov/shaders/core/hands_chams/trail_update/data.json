@@ -1,0 +1,8 @@
+{
+  "vertex": "zov:core/hands_chams/fullscreen",
+  "fragment": "zov:core/hands_chams/trail_update/fragment",
+  "samplers": [
+    {"name": "TrailSampler"},
+    {"name": "MaskSampler"}
+  ]
+}

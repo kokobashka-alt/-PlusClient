@@ -1,0 +1,7 @@
+{
+  "vertex": "zov:core/hands_chams/fullscreen",
+  "fragment": "zov:core/hands_chams/train/fragment",
+  "samplers": [
+    {"name": "MaskSampler"}
+  ]
+}

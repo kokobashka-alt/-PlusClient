@@ -1,0 +1,6 @@
+{
+  "vertex": "zov:core/sky/position_texture_color",
+  "fragment": "zov:core/hands_chams/kawase_down/fragment",
+  "attributes": ["Position", "UV0", "Color"],
+  "samplers": [{"name": "Sampler0"}]
+}

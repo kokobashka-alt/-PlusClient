@@ -1,0 +1,10 @@
+{
+  "vertex": "zov:core/hands_chams/fullscreen",
+  "fragment": "zov:core/hands_chams/blur/fragment",
+  "samplers": [
+    {"name": "AfterSampler"},
+    {"name": "BeforeSampler"},
+    {"name": "BlurredSampler"},
+    {"name": "MaskSampler"}
+  ]
+}
