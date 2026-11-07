@@ -29,7 +29,7 @@ public class Watermark extends AbstractDraggable {
       String offset = "      ";
       String var10000 = "PLUS CLIENT";
       String name = var10000 + offset;
-      String version = UserProfile.role + offset;
+      String version = "Beta user" + offset;
       String fps = this.fpsCount + " FPS";
       blur.render(ShapeProperties.create(matrix, (double)this.getX(), (double)this.getY(), (double)this.getWidth(), (double)this.getHeight()).round(3.0F).softness(1.0F).thickness(2.0F).outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
       font.drawGradientString(matrix, name, (double)(this.getX() + 5), (double)((float)this.getY() + 6.5F), ColorUtil.fade(0), ColorUtil.fade(100));
