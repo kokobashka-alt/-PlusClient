@@ -12,7 +12,7 @@ import net.minecraft.util.math.Vec3d;
 
 public class SmoothRotationMode extends RotationMode {
     public SmoothRotationMode() {
-        super("Funtime");
+        super("RiseTopkaBypass");
     }
 
     @Override
