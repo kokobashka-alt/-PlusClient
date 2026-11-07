@@ -27,7 +27,7 @@ public class Watermark extends AbstractDraggable {
       org.joml.Matrix3x2fStack matrix = e.getMatrices();
       FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
       String offset = "      ";
-      String var10000 = main.getClientInfoProvider().clientName();
+      String var10000 = "PLUS CLIENT";
       String name = var10000 + offset;
       String version = UserProfile.role + offset;
       String fps = this.fpsCount + " FPS";
