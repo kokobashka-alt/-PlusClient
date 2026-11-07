@@ -1,4 +1,5 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
+
 import ru.zov.implement.features.modules.combat.killaura.model.DisplayNamed;
 import ru.zov.implement.features.modules.combat.killaura.Lang;
 import ru.zov.implement.features.modules.combat.killaura.model.Translation;
@@ -10,7 +11,9 @@ public enum AuraRotationMode implements DisplayNamed {
     GRIM(Lang.ATTACKAURA_ROTATION_MODE_GRIM),
     HOLYWORLD(Lang.ATTACKAURA_ROTATION_MODE_HOLYWORLD),
     SLOTH_AC(Translation.clearText("SlothAC")),
-    BEZIER(Translation.clearText("Bezier"));
+    BEZIER(Translation.clearText("Bezier")),
+    MLS(Translation.clearText("MLS")),
+    NEURO(Translation.clearText("Neuro"));
 
     public final Translation displayName;
 
