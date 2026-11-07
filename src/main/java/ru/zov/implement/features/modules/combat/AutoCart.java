@@ -18,7 +18,7 @@ import ru.zov.api.feature.module.setting.implement.BooleanSetting;
 import ru.zov.api.feature.module.setting.implement.SelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.common.util.entity.PlayerInventoryComponent;
-import ru.zov.common.util.entity.PlayerInventoryUtil;
+import ru.zov.common.util.item.PlayerInventoryUtil;
 import ru.zov.common.util.math.StopWatch;
 import ru.zov.common.util.other.Instance;
 import ru.zov.common.util.rotation.AngleUtil;
