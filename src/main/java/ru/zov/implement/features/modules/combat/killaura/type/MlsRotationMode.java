@@ -1,5 +1,7 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
 
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.Vec3d;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 
 /**
@@ -8,22 +10,23 @@ import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
  * Первый шаг — «основной» (к цели), второй — «догоняющий» (доводит остаток).
  * Визуально — плавная наводка с лёгким ускорением на финише.
  */
-public final class MlsRotationMode implements RotationMode {
+public final class MlsRotationMode extends RotationMode {
 
     private final float step1;
     private final float step2;
 
     public MlsRotationMode() {
-        this(0.55f, 0.65f);
+        this("MLS", 0.55f, 0.65f);
     }
 
-    public MlsRotationMode(float step1, float step2) {
+    public MlsRotationMode(String name, float step1, float step2) {
+        super(name);
         this.step1 = clamp01(step1);
         this.step2 = clamp01(step2);
     }
 
     @Override
-    public Rotation calculate(Rotation from, Rotation to) {
+    public Rotation process(Rotation from, Rotation to, Vec3d vec, Entity entity) {
         if (from == null || to == null) return to;
 
         // --- Шаг 1: from → промежуточный ---
@@ -44,13 +47,8 @@ public final class MlsRotationMode implements RotationMode {
     }
 
     @Override
-    public float randomValue() {
-        return 0f;
-    }
-
-    @Override
-    public void reset() {
-        // MLS не хранит состояние — сбрасывать нечего.
+    public Vec3d randomValue() {
+        return Vec3d.ZERO;
     }
 
     // --- утилиты ---
