@@ -1,0 +1,32 @@
+
+name: Unpack ZIP into repository
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack ZIP
+        run: |
+          mkdir extracted
+          unzip -o src.zip -d extracted
+          cp -r extracted/. .
+          rm -rf extracted src.zip
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Extract uploaded ZIP" || echo "Nothing to commit"
+          git push
+          
