@@ -1,5 +1,7 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
 
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.Vec3d;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 
 import java.util.Random;
@@ -12,75 +14,69 @@ import java.util.Random;
  *   NEAR — цель близко, плавное торможение
  *   LOCK — удержание с микро-дрожанием (имитация руки)
  *
- * Точка расширения: если у вас появится NeuroController с весами —
- * переопределите predict(...), оставив calculate(...) как обёртку.
+ * Точка расширения: если появится NeuroController с весами —
+ * переопределите predict(...), оставив process(...) как обёртку.
  */
-public final class NeuroRotationMode implements RotationMode {
+public final class NeuroRotationMode extends RotationMode {
 
     private final Random rnd = new Random();
     private Phase phase = Phase.FAR;
 
     private enum Phase { FAR, NEAR, LOCK }
 
-    private static final float NEAR_THRESHOLD = 20f; // градусы
-    private static final float LOCK_THRESHOLD = 3f;  // градусы
+    private static final float NEAR_THRESHOLD = 20f;
+    private static final float LOCK_THRESHOLD = 3f;
+
+    public NeuroRotationMode() {
+        this("Neuro");
+    }
+
+    public NeuroRotationMode(String name) {
+        super(name);
+    }
 
     @Override
-    public Rotation calculate(Rotation from, Rotation to) {
+    public Rotation process(Rotation from, Rotation to, Vec3d vec, Entity entity) {
         if (from == null || to == null) return to;
 
         float dYaw = wrap(to.getYaw() - from.getYaw());
         float dPitch = to.getPitch() - from.getPitch();
         float dist = (float) Math.hypot(dYaw, dPitch);
 
-        // --- Определяем фазу ---
-        if (dist > NEAR_THRESHOLD) {
-            phase = Phase.FAR;
-        } else if (dist > LOCK_THRESHOLD) {
-            phase = Phase.NEAR;
-        } else {
-            phase = Phase.LOCK;
-        }
+        if (dist > NEAR_THRESHOLD)      phase = Phase.FAR;
+        else if (dist > LOCK_THRESHOLD) phase = Phase.NEAR;
+        else                            phase = Phase.LOCK;
 
-        // --- Скорость зависит от фазы ---
         float speed = switch (phase) {
-            case FAR  -> 0.75f + rnd.nextFloat() * 0.15f; // рывок
-            case NEAR -> 0.35f + rnd.nextFloat() * 0.10f; // торможение
-            case LOCK -> 0.12f + rnd.nextFloat() * 0.06f; // удержание
+            case FAR  -> 0.75f + rnd.nextFloat() * 0.15f;
+            case NEAR -> 0.35f + rnd.nextFloat() * 0.10f;
+            case LOCK -> 0.12f + rnd.nextFloat() * 0.06f;
         };
 
         float newYaw = from.getYaw() + dYaw * speed;
         float newPitch = from.getPitch() + dPitch * speed;
 
-        // --- «Человеческий» джиттер ---
         float jitter = phase == Phase.LOCK ? 0.06f : 0.15f;
-        newYaw += (rnd.nextFloat() - 0.5f) * jitter;
+        newYaw   += (rnd.nextFloat() - 0.5f) * jitter;
         newPitch += (rnd.nextFloat() - 0.5f) * jitter * 0.7f;
 
-        newPitch = clampPitch(newPitch);
-
-        return new Rotation(newYaw, newPitch);
-    }
-
-    /**
-     * Точка расширения для настоящей ML-модели.
-     * Пока просто делегирует в calculate.
-     */
-    protected Rotation predict(Rotation from, Rotation to) {
-        return calculate(from, to);
+        return new Rotation(newYaw, clampPitch(newPitch));
     }
 
     @Override
-    public float randomValue() {
-        return (rnd.nextFloat() - 0.5f) * 0.4f;
+    public Vec3d randomValue() {
+        return new Vec3d(
+            (rnd.nextDouble() - 0.5) * 0.4,
+            0.0,
+            (rnd.nextDouble() - 0.5) * 0.4
+        );
     }
 
-    @Override
+    /** Сброс фазы в FAR (можно звать из Aura при смене цели). */
     public void reset() {
         phase = Phase.FAR;
     }
 
-    // --- утилиты ---
     private static float wrap(float deg) {
         deg %= 360f;
         if (deg >= 180f) deg -= 360f;
