@@ -14,6 +14,14 @@ public class PouchPotions extends AbstractDraggable {
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final List<StatusEffectInstance> effects = new ArrayList<>();
 
+    private static final int MIN_WIDTH = 150;
+    private static final int HEADER_HEIGHT = 22;
+    private static final int ROW_HEIGHT = 17;
+
+    private static final int BACKGROUND = 0xAA101010;
+    private static final int ACCENT = 0xFF8B5CF6;
+    private static final int TEXT_COLOR = 0xFFFFFFFF;
+
     public PouchPotions() {
         super("PouchPotions", 300, 100, 120, 25, true);
     }
@@ -37,21 +45,34 @@ public class PouchPotions extends AbstractDraggable {
         int x = (int) getX();
         int y = (int) getY();
 
-        int width = 150;
-        int height = 22 + effects.size() * 17;
+        int width = MIN_WIDTH;
+
+        // Calculate panel width
+        for (StatusEffectInstance effect : effects) {
+            String name = getEffectName(effect);
+            String level = " " + (effect.getAmplifier() + 1);
+            String time = effect.getDurationString().getString();
+
+            int textWidth = mc.textRenderer.getWidth(name + level);
+            int timeWidth = mc.textRenderer.getWidth(time);
+
+            width = Math.max(width, textWidth + timeWidth + 20);
+        }
+
+        int height = HEADER_HEIGHT + effects.size() * ROW_HEIGHT;
 
         // Background
         context.fill(
                 x, y,
                 x + width, y + height,
-                0xAA101010
+                BACKGROUND
         );
 
         // Accent
         context.fill(
                 x, y,
                 x + 2, y + height,
-                0xFF8B5CF6
+                ACCENT
         );
 
         // Header
@@ -60,32 +81,23 @@ public class PouchPotions extends AbstractDraggable {
                 "Potions",
                 x + 7,
                 y + 6,
-                0xFF8B5CF6,
+                ACCENT,
                 false
         );
 
-        int offset = 22;
-        int maxWidth = width;
+        int offset = HEADER_HEIGHT;
 
         for (StatusEffectInstance effect : effects) {
-            String name = effect.getEffectType()
-                    .value()
-                    .getName()
-                    .getString();
-
-            int amplifier = effect.getAmplifier() + 1;
-            String level = " " + amplifier;
-
-            String time = StatusEffectInstance
-                    .getDurationString(effect)
-                    .getString();
+            String name = getEffectName(effect);
+            String level = " " + (effect.getAmplifier() + 1);
+            String time = effect.getDurationString().getString();
 
             context.drawText(
                     mc.textRenderer,
                     name + level,
                     x + 7,
                     y + offset,
-                    0xFFFFFFFF,
+                    TEXT_COLOR,
                     false
             );
 
@@ -96,21 +108,21 @@ public class PouchPotions extends AbstractDraggable {
                     time,
                     x + width - timeWidth - 7,
                     y + offset,
-                    0xFF8B5CF6,
+                    ACCENT,
                     false
             );
 
-            maxWidth = Math.max(
-                    maxWidth,
-                    mc.textRenderer.getWidth(name + level)
-                            + timeWidth + 20
-            );
-
-            offset += 17;
+            offset += ROW_HEIGHT;
         }
 
-        setWidth(maxWidth);
+        setWidth(width);
         setHeight(height);
     }
-}
 
+    private String getEffectName(StatusEffectInstance effect) {
+        return effect.getEffectType()
+                .value()
+                .getName()
+                .getString();
+    }
+}
