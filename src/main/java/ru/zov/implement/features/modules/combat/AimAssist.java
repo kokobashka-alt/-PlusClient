@@ -6,10 +6,9 @@ import java.util.List;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.AxeItem;
-import net.minecraft.item.SwordItem;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -30,7 +29,6 @@ public class AimAssist extends Module {
     private LivingEntity cachedTarget;
     private long lastTargetSwitch;
 
-    // Настройки (адаптированы под Zov)
     public final SelectSetting rotationMode = new SelectSetting("Ротация", "Тип наводки")
             .value("Linear", "Smooth", "Instant").selected("Linear");
     public final ValueSetting speed = new ValueSetting("Скорость", "Скорость наводки")
@@ -64,22 +62,24 @@ public class AimAssist extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
 
-        // Если в руке нет оружия, не работаем (опция)
         if (onlyWeapon.isValue()) {
-            var stack = mc.player.getMainHandStack();
-            if (!(stack.getItem() instanceof SwordItem) && !(stack.getItem() instanceof AxeItem)) {
+            ItemStack stack = mc.player.getMainHandStack();
+            if (stack.isEmpty()) return;
+
+            // Use the registry identifier rather than the translated display name,
+            // so this works regardless of the player's language settings.
+            String itemId = Registries.ITEM.getId(stack.getItem()).getPath();
+            if (!itemId.contains("sword") && !itemId.contains("axe") && !itemId.contains("mace")) {
                 return;
             }
         }
 
-        // 1. Поиск цели
         LivingEntity target = findTarget();
         if (target == null) {
             cachedTarget = null;
             return;
         }
 
-        // 2. Считаем угол на цель
         Vec3d targetPoint = target.getEyePos().add(0, 0.1, 0);
         Vec3d diff = targetPoint.subtract(mc.player.getEyePos());
 
@@ -87,7 +87,6 @@ public class AimAssist extends Module {
         float targetPitch = (float) -Math.toDegrees(Math.atan2(diff.y, Math.hypot(diff.x, diff.z)));
         targetPitch = MathHelper.clamp(targetPitch, -90.0f, 90.0f);
 
-        // 3. Плавная наводка (напрямую в камеру)
         if (cachedTarget == null || System.currentTimeMillis() - lastTargetSwitch > 300) {
             cachedTarget = target;
             lastTargetSwitch = System.currentTimeMillis();
@@ -97,7 +96,6 @@ public class AimAssist extends Module {
         float dYaw = MathHelper.wrapDegrees(targetYaw - mc.player.getYaw());
         float dPitch = targetPitch - mc.player.getPitch();
 
-        // Плавно поворачиваем камеру
         mc.player.setYaw(mc.player.getYaw() + dYaw / speedFactor);
         mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + dPitch / speedFactor, -90.0f, 90.0f));
     }
