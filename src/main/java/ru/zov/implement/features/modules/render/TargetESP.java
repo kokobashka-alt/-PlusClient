@@ -138,7 +138,7 @@ public class TargetESP extends Module {
         int green = 255;
         int blue = 255;
 
-        if (look.getValue()) {
+        if (look.isValue()) {
             float hue = colorSetting.getValue();
             red = (int) (255 * hue);
             green = (int) (255 * (1.0f - hue));
@@ -149,7 +149,7 @@ public class TargetESP extends Module {
                 mc.getBufferBuilders().getEntityVertexConsumers();
 
         VertexConsumer vertex = consumers.getBuffer(
-                RenderLayer.getEntityTranslucent(SKULL_TEXTURE)
+                RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE)
         );
 
         Matrix4f matrix = matrices.peek().getPositionMatrix();
@@ -182,7 +182,7 @@ public class TargetESP extends Module {
                 .light(15728880)
                 .normal(matrices.peek(), 0, 0, 1);
 
-        consumers.draw(RenderLayer.getEntityTranslucent(SKULL_TEXTURE));
+        consumers.draw(RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE));
 
         matrices.pop();
     }
