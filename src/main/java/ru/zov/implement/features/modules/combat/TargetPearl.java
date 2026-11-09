@@ -45,9 +45,12 @@ public class TargetPearl extends Module {
     private static final int MAX_SAFE_TARGETS = 4;
 
     private final ValueSetting distance = new ValueSetting(
-    "Мин. дистанция", "Минимальная дальность приземления")
-    .setValue(10.0f)
-    .range(8.0f, 20.0f);
+        "Мин. дистанция", "Минимальная дальность приземления")
+        .setValue(10.0f)
+        .range(8.0f, 20.0f);
+
+    private final BooleanSetting ignoreFriends = new BooleanSetting(
+        "Игнорировать друзей", "Не повторять жемчуг друга").setValue(true);
 
     private long lastThrow;
     private long lastScan;
@@ -90,7 +93,7 @@ public class TargetPearl extends Module {
             Vec3d landing = predictLanding(pearl);
             if (landing == null) continue;
 
-            double d = mc.player.getPos().distanceTo(landing);
+            double d = mc.player.getEntityPos().distanceTo(landing);
             if (d >= distance.getValue() && d <= 120.0 && d < bestDistance) {
                 bestDistance = d;
                 bestLanding = landing;
@@ -124,7 +127,7 @@ public class TargetPearl extends Module {
     // ---------- предсказание чужого жемчуга ----------
 
     private Vec3d predictLanding(EnderPearlEntity pearl) {
-        Vec3d position = pearl.getPos();
+        Vec3d position = pearl.getEntityPos();
         Vec3d velocity = pearl.getVelocity();
 
         for (int tick = 0; tick < MAX_SIMULATION_TICKS; tick++) {
