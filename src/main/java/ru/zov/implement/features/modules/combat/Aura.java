@@ -68,7 +68,6 @@ import ru.zov.implement.features.modules.combat.killaura.util.TargetSorters;
 import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
-import ru.zov.implement.features.modules.render.TargetESP;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -76,7 +75,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-
+import java.util.stream.StreamSupport;
 import net.minecraft.block.CobwebBlock;
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -102,7 +101,6 @@ import net.minecraft.util.StringHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.BlockPos;
 
 @Aliases(aliases = {"Attack Aura", "Kill Aura", "Hit Aura", "Aura"})
 public final class Aura extends Module {
@@ -348,8 +346,8 @@ public final class Aura extends Module {
                 RotationManager rotationManager = RotationManager.INSTANCE;
                 switch (EventPhaseSwitchMap.phaseOrdinals[class345Var.stage().ordinal()]) {
                     case 1:
-     updateRotation(player, rotationManager);
-                        break;
+                        updateRotation(player, rotationManager);
+break;
                     case 2:
                         performAttack(player, interactionManager, rotationManager);
                         break;
@@ -510,17 +508,14 @@ public final class Aura extends Module {
     }
 
     private Vec3d getFunTimeAimPoint(LivingEntity target, float range, ClientPlayerEntity player) {
-        // Логика выбора точки для FunTime
         if (target != lastPointTarget) {
             lastPointTarget = target;
             pointHitCount = -1;
         }
 
         Box box = target.getBoundingBox();
-        Vec3d eyePos = player.getEyePos();
         
         List<Vec3d> points = new ArrayList<>();
-        // Создаем сетку точек по хитбоксу
         for (double x = 0.1; x < 0.9; x += 0.4) {
             for (double y = 0.2; y < 0.9; y += 0.3) {
                 for (double z = 0.1; z < 0.9; z += 0.4) {
@@ -533,7 +528,6 @@ public final class Aura extends Module {
             }
         }
 
-        // Если попали в тот же удар, можно оставить точку, но для простоты берем случайную
         pointHitCount = hitCounter;
         return points.get((int) (Math.random() * points.size()));
     }
@@ -654,4 +648,8 @@ public final class Aura extends Module {
         if (!livingEntity.isUsingItem() || livingEntity.activeItemStack.isEmpty()) {
             return false;
         }
-        Item item = livingEntity.activeItemStack
+        Item item = livingEntity.activeItemStack.getItem();
+        return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity) - livingEntity.getItemUseTimeLeft() >= i;
+    }
+
+    public Rotation  
