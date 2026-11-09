@@ -44,9 +44,11 @@ public class AutoCart extends Module {
     public final BooleanSetting ignite = new BooleanSetting(
         "Поджигать", "Взрывать вагонетку после установки").setValue(true);
 
-    public final SelectSetting igniteMode = new SelectSetting(
-        "Поджиг", "Способ детонации", "Лук", "Лук", "Огниво")
-        .visible(() -> ignite.isValue());
+public final SelectSetting igniteMode = new SelectSetting(
+    "Поджиг", "Способ детонации")
+    .value("Лук", "Огниво")
+    .selected("Лук")
+    .visible(() -> ignite.isValue());
 
     public final ValueSetting drawTicks = new ValueSetting(
         "Натяжка", "Сколько тиков натягивать лук")
@@ -55,7 +57,9 @@ public class AutoCart extends Module {
         .visible(() -> ignite.isValue() && igniteMode.isSelected("Лук"));
 
     public final SelectSetting swapMode = new SelectSetting(
-        "Свап", "Способ переключения", "Silent", "Silent", "Legit");
+    "Свап", "Способ переключения")
+    .value("Silent", "Legit")
+    .selected("Silent");
 
     public final BooleanSetting debugMessages = new BooleanSetting(
         "Сообщения", "Писать в чат причины неудач").setValue(true);
