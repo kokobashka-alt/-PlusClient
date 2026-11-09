@@ -14,8 +14,8 @@ public class UserComponent extends AbstractComponent {
       rectangle.render(ShapeProperties.create(matrix, (double)(this.x + 5.0F), (double)(this.y - 30.0F), (double)75.0F, (double)25.0F).round(4.0F).thickness(2.0F).softness(0.5F).outlineColor(ColorUtil.getOutline()).color(ColorUtil.getGuiRectColor(0.5F)).build());
       ScissorManager scissor = main.getScissorManager();
       scissor.push(matrix, this.x + 5.5F, this.y - 29.5F, 74.0F, 22.0F);
-      Fonts.getSize(12).drawString(matrix, UserProfile.username, (double)(this.x + 11.0F), (double)(this.y - 21.0F), -2828575);
-      Fonts.getSize(10).drawGradientString(matrix, UserProfile.role, (double)(this.x + 11.0F), (double)this.y - (double)14.5F, ColorUtil.fade(0), ColorUtil.fade(60));
+Fonts.getSize(12).drawString(matrix, "PlusUser", (double)(this.x + 11.0F), (double)(this.y - 21.0F), -2828575);
+Fonts.getSize(10).drawGradientString(matrix, "Beta", (double)(this.x + 11.0F), (double)this.y - (double)14.5F, ColorUtil.fade(0), ColorUtil.fade(60));
       scissor.pop();
    }
 
