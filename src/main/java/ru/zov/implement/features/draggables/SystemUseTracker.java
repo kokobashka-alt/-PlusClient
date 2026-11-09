@@ -120,11 +120,13 @@ public class SystemUseTracker extends AbstractDraggable {
             
             // Считаем прогресс использования (от 0 до 1)
             float maxUseTime = item.getMaxUseTime(player);
-            float useProgress = 1.0f;
+            float calculatedProgress = 1.0f;
             if (maxUseTime > 0) {
-                useProgress = 1.0f - ((float)player.getItemUseTimeLeft() / maxUseTime);
+                calculatedProgress = 1.0f - ((float)player.getItemUseTimeLeft() / maxUseTime);
             }
-            useProgress = MathHelper.clamp(useProgress, 0.0f, 1.0f);
+            
+            // Создаем финальную переменную для использования в лямбде
+            final float useProgress = MathHelper.clamp(calculatedProgress, 0.0f, 1.0f);
 
             // Анимация появления
             MathUtil.scale(matrix, centerX, centerY, 1.0F, anim, () -> {
