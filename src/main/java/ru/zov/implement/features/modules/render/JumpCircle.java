@@ -1,3 +1,4 @@
+
 package ru.zov.implement.features.modules.render;
 
 import net.minecraft.util.math.Vec3d;
@@ -7,9 +8,9 @@ import ru.zov.api.feature.module.ModuleCategory;
 import ru.zov.api.feature.module.setting.Setting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.common.util.other.Instance;
+import ru.zov.common.util.render.Render3DUtil;
 import ru.zov.implement.events.player.TickEvent;
 import ru.zov.implement.events.render.WorldRenderEvent;
-import ru.zov.common.util.render.Render3DUtil;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,13 +37,6 @@ public class JumpCircle extends Module {
 
     public static JumpCircle getInstance() {
         return (JumpCircle) Instance.get(JumpCircle.class);
-    }
-
-    @Override
-    public void onEnable() {
-        circles.clear();
-        wasOnGround = true;
-        super.onEnable();
     }
 
     @EventHandler
@@ -92,7 +86,9 @@ public class JumpCircle extends Module {
                 continue;
             }
 
-            float currentRadius = radius.getValue() * (0.5f + progress * 0.5f);
+            float currentRadius = radius.getValue()
+                    * (0.5f + progress * 0.5f);
+
             float alpha = 1.0f - progress;
 
             int color = ((int) (alpha * 255) << 24) | 0x00A855F7;
