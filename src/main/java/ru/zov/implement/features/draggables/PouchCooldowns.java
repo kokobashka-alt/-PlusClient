@@ -1,9 +1,7 @@
-
 package ru.zov.implement.features.draggables;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -18,6 +16,10 @@ import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.animation.Animation;
 import ru.zov.api.system.animation.Direction;
 import ru.zov.api.system.animation.implement.DecelerateAnimation;
+import ru.zov.api.system.font.FontRenderer;
+import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
+import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
 import ru.zov.common.util.item.ItemUtil;
 import ru.zov.common.util.math.StopWatch;
@@ -31,28 +33,22 @@ public class PouchCooldowns extends AbstractDraggable {
     public final List<PouchCoolDown> list = new ArrayList<>();
 
     public PouchCooldowns() {
-        super("PouchCooldowns", 120, 300, 100, 23, true);
+        // Координаты x=10, y=120 (под Potions)
+        super("PouchCooldowns", 10, 120, 120, 23, true);
     }
 
     @Override
     public boolean visible() {
-        return !list.isEmpty()
-                || PlayerIntersectionUtil.isChat(mc.currentScreen);
+        return !list.isEmpty() || PlayerIntersectionUtil.isChat(mc.currentScreen);
     }
 
     @Override
     public void tick() {
-        list.removeIf(coolDown ->
-                coolDown.anim().isFinished(Direction.BACKWARDS)
-        );
+        list.removeIf(coolDown -> coolDown.anim().isFinished(Direction.BACKWARDS));
 
         list.stream()
-                .filter(coolDown ->
-                        !ItemUtil.hasCooldown(coolDown.item())
-                )
-                .forEach(coolDown ->
-                        coolDown.anim().setDirection(Direction.BACKWARDS)
-                );
+                .filter(coolDown -> !ItemUtil.hasCooldown(coolDown.item()))
+                .forEach(coolDown -> coolDown.anim().setDirection(Direction.BACKWARDS));
     }
 
     @Override
@@ -64,30 +60,19 @@ public class PouchCooldowns extends AbstractDraggable {
         Packet<?> packet = e.getPacket();
 
         if (packet instanceof CooldownUpdateS2CPacket cooldownUpdate) {
-
-            Item item = Registries.ITEM.get(
-                    cooldownUpdate.cooldownGroup()
-            );
+            Item item = Registries.ITEM.get(cooldownUpdate.cooldownGroup());
 
             list.stream()
                     .filter(coolDown -> coolDown.item().equals(item))
-                    .forEach(coolDown ->
-                            coolDown.anim().setDirection(Direction.BACKWARDS)
-                    );
+                    .forEach(coolDown -> coolDown.anim().setDirection(Direction.BACKWARDS));
 
-            int cooldown = MathHelper.clamp(
-                    cooldownUpdate.cooldown(),
-                    -1,
-                    100000
-            );
+            int cooldown = MathHelper.clamp(cooldownUpdate.cooldown(), -1, 100000);
 
             if (cooldown != 0) {
                 list.add(new PouchCoolDown(
                         item,
                         new StopWatch().setMs(-cooldown * 50),
-                        new DecelerateAnimation()
-                                .setMs(150)
-                                .setValue(1.0F)
+                        new DecelerateAnimation().setMs(150).setValue(1.0F)
                 ));
             }
 
@@ -98,108 +83,60 @@ public class PouchCooldowns extends AbstractDraggable {
 
     @Override
     public void drawDraggable(DrawContext context) {
-        int x = (int) getX();
-        int y = (int) getY();
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
+        FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        int width = 100;
+        // Заголовок с блюром
+        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
+                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
+
+        // Основной фон
+        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
+                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
+
+        // Заголовок по центру
+        float centerX = this.getX() + this.getWidth() / 2.0F;
+        String header = "Cooldowns";
+        font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
+
+        // Полоска акцента
+        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
+                .color(ColorUtil.getClientColor()).build());
+
         int offset = 23;
-
-        // Background
-        context.fill(
-                x, y,
-                x + width, y + 20,
-                0xAA101010
-        );
-
-        context.fill(
-                x, y + 20,
-                x + width, y + getHeight(),
-                0xAA181818
-        );
-
-        // Accent
-        context.fill(
-                x, y,
-                x + 2, y + getHeight(),
-                0xFF8B5CF6
-        );
-
-        // Header
-        String title = "Cooldowns";
-
-        int titleWidth = mc.textRenderer.getWidth(title);
-
-        context.drawText(
-                mc.textRenderer,
-                title,
-                x + (width - titleWidth) / 2,
-                y + 6,
-                0xFF8B5CF6,
-                false
-        );
-
-        int maxWidth = 100;
+        int maxWidth = 120;
 
         for (PouchCoolDown coolDown : list) {
-
             float animation = coolDown.anim().getOutput().floatValue();
-
             int time = -coolDown.time().elapsedInt() / 100;
+            
+            if (animation <= 0.05f) continue;
 
-            String name = coolDown.item()
-                    .getDefaultStack()
-                    .getName()
-                    .getString();
-
+            String name = coolDown.item().getDefaultStack().getName().getString();
             String duration = StringUtil.getDurationMS(time, true);
 
-            int rowY = y + offset;
+            // Иконка предмета
+            context.drawItem(coolDown.item().getDefaultStack(), (int) this.getX() + 5, (int) this.getY() + offset - 3);
 
-            // Item icon
-            context.drawItem(
-                    coolDown.item().getDefaultStack(),
-                    x + 5,
-                    rowY - 3
-            );
+            // Название (слева)
+            fontItem.drawString(matrix, name, this.getX() + 23, this.getY() + offset, ColorUtil.getText());
 
-            // Item name
-            context.drawText(
-                    mc.textRenderer,
-                    name,
-                    x + 24,
-                    rowY,
-                    0xFFFFFFFF,
-                    false
-            );
+            // Время (справа)
+            int durationWidth = fontItem.getStringWidth(duration);
+            fontItem.drawString(matrix, duration, this.getX() + this.getWidth() - durationWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
 
-            // Remaining time
-            int durationWidth = mc.textRenderer.getWidth(duration);
-
-            context.drawText(
-                    mc.textRenderer,
-                    duration,
-                    x + width - durationWidth - 6,
-                    rowY,
-                    0xFF8B5CF6,
-                    false
-            );
-
-            int rowWidth = mc.textRenderer.getWidth(name)
-                    + durationWidth + 35;
-
-            maxWidth = Math.max(maxWidth, rowWidth);
-
-            offset += Math.max(1, (int) (11.0F * animation));
+            int width = (int) fontItem.getStringWidth(name) + durationWidth + 35;
+            maxWidth = Math.max(maxWidth, width);
+            offset += Math.max(1, (int) (12.0F * animation));
         }
 
-        setWidth(maxWidth);
-        setHeight(offset);
+        this.setWidth(maxWidth);
+        this.setHeight(offset + 5);
     }
 
-    public record PouchCoolDown(
-            Item item,
-            StopWatch time,
-            Animation anim
-    ) {
+    public record PouchCoolDown(Item item, StopWatch time, Animation anim) {
     }
 }
