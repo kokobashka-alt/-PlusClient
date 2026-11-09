@@ -36,7 +36,7 @@ public class CrystalAura extends Module {
     private long lastActionTime;
 
     public CrystalAura() {
-        super("CrystalAura", "Автоматически ставит и взрывает кристаллы", ModuleCategory.COMBAT);
+        super("CrystalAura", "CrystalAura", ModuleCategory.COMBAT);
         this.setup(new Setting[]{targetRange, placeRange, breakRange, autoPlace});
     }
 
