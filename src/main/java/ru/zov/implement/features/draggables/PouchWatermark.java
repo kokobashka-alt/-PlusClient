@@ -8,7 +8,6 @@ import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
-import ru.zov.common.util.render.Render2DUtil;
 
 public class PouchWatermark extends AbstractDraggable {
 
@@ -29,9 +28,9 @@ public class PouchWatermark extends AbstractDraggable {
         String clientName = "Pouch";
         String username = mc.player.getName().getString();
         String fps = mc.getCurrentFps() + "fps";
-        String role = "User"; // Можно заменить на получение роли (если есть)
+        String role = "User"; // Можно заменить на получение роли
 
-        // Получаем пинг (для отображения)
+        // Получаем пинг
         String ping = "0ms";
         if (mc.getNetworkHandler() != null) {
             PlayerListEntry entry = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
@@ -49,9 +48,6 @@ public class PouchWatermark extends AbstractDraggable {
         blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), width, height)
                 .round(4.0F).softness(1.0F).thickness(2.0F)
                 .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
-
-        // Иконка (если хочешь добавить картинку, раскомментируй)
-        // Render2DUtil.drawTexture(matrix, Identifier.of("zov", "textures/icon.png"), this.getX() + 4, this.getY() + 4, 10, 0, 10, 10, 10, 10, -1);
 
         // Название клиента (градиент)
         float currentX = this.getX() + 5;
