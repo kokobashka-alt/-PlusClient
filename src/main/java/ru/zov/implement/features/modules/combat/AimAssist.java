@@ -21,7 +21,7 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.implement.features.modules.combat.killaura.ui.ModuleTab
+import ru.zov.implement.features.modules.combat.killaura.ui.ModuleTab;
 
 public class AimAssist extends Module {
 
