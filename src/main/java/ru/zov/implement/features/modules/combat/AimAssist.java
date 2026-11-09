@@ -126,8 +126,7 @@ public class AimAssist extends Module {
 
         if (candidates.isEmpty()) return null;
 
-        String mode = priority.get(); 
-// Если компилятор подчеркнет .get() красным — замени на .currentValue()
+        String mode = priority.getSelected();
         Comparator<LivingEntity> comparator;
         if ("Health".equals(mode)) {
             comparator = Comparator.comparingDouble(LivingEntity::getHealth);
