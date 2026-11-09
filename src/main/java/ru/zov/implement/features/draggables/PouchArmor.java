@@ -1,4 +1,3 @@
-
 package ru.zov.implement.features.draggables;
 
 import java.util.ArrayList;
@@ -11,6 +10,10 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 
 import ru.zov.api.feature.draggable.AbstractDraggable;
+import ru.zov.api.system.font.FontRenderer;
+import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
+import ru.zov.common.util.color.ColorUtil;
 import ru.zov.implement.features.modules.combat.Aura;
 import ru.zov.implement.features.modules.combat.TriggerBot;
 
@@ -62,88 +65,68 @@ public class PouchArmor extends AbstractDraggable {
     public void drawDraggable(DrawContext context) {
         if (target == null) return;
 
-        int x = (int) getX();
-        int y = (int) getY();
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
+        FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
         List<ItemStack> items = new ArrayList<>();
 
         for (EquipmentSlot slot : armorSlots) {
             ItemStack stack = target.getEquippedStack(slot);
-
             if (!stack.isEmpty()) {
                 items.add(stack);
             }
         }
 
-        int width = 145;
-        int height = 22 + items.size() * 22;
+        // Заголовок (17.5 высота как в других твоих худах)
+        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
+                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
 
-        // Background
-        context.fill(
-                x, y,
-                x + width, y + height,
-                0xAA101010
-        );
+        // Основной фон (список)
+        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
+                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
-        // Accent
-        context.fill(
-                x, y,
-                x + 2, y + height,
-                0xFF8B5CF6
-        );
+        // Заголовок текста (по центру)
+        float centerX = this.getX() + this.getWidth() / 2.0F;
+        font.drawString(matrix, "Target Armor", (int) (centerX - font.getStringWidth("Target Armor") / 2.0F), this.getY() + 7, ColorUtil.getText());
 
-        // Header
-        context.drawText(
-                mc.textRenderer,
-                "Target Armor",
-                x + 7,
-                y + 6,
-                0xFF8B5CF6,
-                false
-        );
+        // Полоска акцента под заголовком
+        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
+                .color(ColorUtil.getClientColor()).build());
 
-        int offset = 20;
+        int offset = 22;
+        int maxWidth = 120;
 
         for (ItemStack stack : items) {
-            context.drawItem(stack, x + 7, y + offset - 3);
+            // Иконка предмета
+            context.drawItem(stack, (int) this.getX() + 5, (int) this.getY() + offset);
 
             String name = stack.getName().getString();
-
             String durability;
 
             if (stack.isDamageable()) {
                 int remaining = stack.getMaxDamage() - stack.getDamage();
                 int percent = remaining * 100 / stack.getMaxDamage();
-
                 durability = percent + "%";
             } else {
                 durability = "100%";
             }
 
-            context.drawText(
-                    mc.textRenderer,
-                    name,
-                    x + 27,
-                    y + offset,
-                    0xFFFFFFFF,
-                    false
-            );
+            // Название предмета (по левому краю)
+            fontItem.drawString(matrix, name, this.getX() + 25, this.getY() + offset + 2, ColorUtil.getText());
 
-            int durabilityWidth = mc.textRenderer.getWidth(durability);
+            // Прочность (по правому краю)
+            int durabilityWidth = fontItem.getStringWidth(durability);
+            fontItem.drawString(matrix, durability, this.getX() + this.getWidth() - durabilityWidth - 5, this.getY() + offset + 2, ColorUtil.getClientColor());
 
-            context.drawText(
-                    mc.textRenderer,
-                    durability,
-                    x + width - durabilityWidth - 7,
-                    y + offset,
-                    0xFF8B5CF6,
-                    false
-            );
-
+            int width = (int) fontItem.getStringWidth(name + durability) + 40;
+            maxWidth = Math.max(maxWidth, width);
             offset += 22;
         }
 
-        setWidth(width);
-        setHeight(height);
+        this.setWidth(maxWidth);
+        this.setHeight(offset);
     }
 }
