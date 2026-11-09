@@ -117,7 +117,7 @@ public class PouchStaffList extends AbstractDraggable {
                         status.equals("NEAR") ? ColorUtil.getColor(112, 220, 112) : 
                         ColorUtil.getText(0.7F);
 
-            int statusWidth = fontItem.getStringWidth(status);
+            int statusWidth = (int) fontItem.getStringWidth(status);
             fontItem.drawString(matrix, status, this.getX() + this.getWidth() - statusWidth - 5, this.getY() + offset, color);
 
             int width = (int) fontItem.getStringWidth(name) + statusWidth + 20;
