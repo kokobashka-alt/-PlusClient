@@ -27,7 +27,7 @@ import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
 import ru.zov.implement.features.modules.combat.killaura.config.RotationConfig;
 import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
-import ru.zov.implement.features.modules.combat.killaura.type.LinearSmoothMode;
+import ru.zov.implement.features.modules.combat.killaura.type.SpeedRotationMode;
 
 public class AimAssist extends Module {
 
@@ -106,16 +106,15 @@ public class AimAssist extends Module {
         // Плавная наводка через RotationManager
         Rotation goalRotation = new Rotation(targetYaw, targetPitch);
         RotationVector rotationVector = new RotationVector(goalRotation, diff);
-        
-        // Используем LinearSmoothMode для плавности
-        RotationConfig config = new RotationConfig(
-                new LinearSmoothMode(),
-                false, // not free
-                true, // moveCorrection
-                false // focus
-        );
 
         float speedFactor = speed.getValue();
+        RotationConfig config = new RotationConfig(
+                new SpeedRotationMode(180.0f / speedFactor, 180.0f / speedFactor),
+                false, // client rotation
+                true, // move correction
+                false // focused correction
+        );
+
         // Отправляем задачу в менеджер ротаций (тики = скорость)
         RotationManager.INSTANCE.scheduleRotation(
                 rotationVector,

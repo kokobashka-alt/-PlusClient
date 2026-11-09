@@ -3,8 +3,8 @@ package ru.zov.implement.features.modules.combat;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.AxeItem;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.SwordItem;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import ru.nexusguard.protection.annotations.Native;
@@ -58,18 +58,15 @@ public class TriggerBot extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
 
-        // 1. Проверка на оружие
-        if (weaponOnly.isValue()) {
-            if (!(mc.player.getMainHandStack().getItem() instanceof SwordItem)
-                    && !(mc.player.getMainHandStack().getItem() instanceof AxeItem)) {
-                this.target = null;
-                return;
-            }
+        // Check for weapon using the item display name; SwordItem is unavailable in this Minecraft version.
+        if (weaponOnly.isValue() && !isWeapon(mc.player.getMainHandStack())) {
+            this.target = null;
+            return;
         }
 
         // 2. Рейкаст в сущность
         EntityHitResult hit = (EntityHitResult) RaytracingUtil.raytraceEntity(
-                reach.getValue(), 
+                reach.getValue(),
                 AngleUtil.cameraAngle(),
                 s -> !FriendUtils.isFriend(s.getName().getString()) && s instanceof LivingEntity
         );
@@ -109,6 +106,14 @@ public class TriggerBot extends Module {
         // 6. Атакуем
         mc.interactionManager.attackEntity(mc.player, this.target);
         mc.player.swingHand(Hand.MAIN_HAND);
+    }
+
+    private boolean isWeapon(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        if (stack.getItem() instanceof AxeItem) return true;
+
+        String name = stack.getItem().getName().getString().toLowerCase();
+        return name.contains("sword") || name.contains("меч") || name.contains("mace");
     }
 
     private LivingEntity findTargetThroughWalls() {
