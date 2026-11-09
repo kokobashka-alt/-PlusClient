@@ -115,14 +115,16 @@ public class AimAssist extends Module {
                 false // focused correction
         );
 
-        // Отправляем задачу в менеджер ротаций (тики = скорость)
+        // The rotation manager overloads are typed for the killaura Module provider,
+        // but this class is the main API Module. Use the int-before-Module overload
+        // so the call matches the actual method signature without changing inheritance.
         RotationManager.INSTANCE.scheduleRotation(
                 rotationVector,
                 target,
                 config,
-                1, // Приоритет
-                this,
-                (int) speedFactor // Чем больше, тем дольше ведет
+                1,
+                (int) speedFactor,
+                null
         );
     }
 
