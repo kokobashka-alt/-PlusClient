@@ -9,6 +9,7 @@ import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.entity.PlayerIntersectionUtil;
 import ru.zov.common.util.other.StringUtil;
 
 public class PouchHotKeys extends AbstractDraggable {
@@ -16,7 +17,7 @@ public class PouchHotKeys extends AbstractDraggable {
     private List<Module> keysList = List.of();
 
     public PouchHotKeys() {
-        super("PouchHotKeys", 140, 60, 120, 23, true); // Сдвинул координаты, чтобы не перекрывалось
+        super("PouchHotKeys", 140, 60, 120, 23, true);
     }
 
     @Override
@@ -31,6 +32,10 @@ public class PouchHotKeys extends AbstractDraggable {
 
     @Override
     public boolean visible() {
+        // Если открыт чат, принудительно показываем элемент для перетаскивания
+        if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            return true;
+        }
         return !keysList.isEmpty();
     }
 
@@ -62,20 +67,29 @@ public class PouchHotKeys extends AbstractDraggable {
         int offset = 23;
         int maxWidth = 120;
 
-        for (Module module : keysList) {
-            String name = module.getName();
-            String bind = "[" + StringUtil.getBindName(module.getKey()) + "]";
-
-            // Название модуля (слева)
-            fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
-
-            // Бинд (справа)
-            int bindWidth = (int) fontItem.getStringWidth(bind);
-            fontItem.drawString(matrix, bind, this.getX() + this.getWidth() - bindWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
-
-            int width = (int) fontItem.getStringWidth(name) + bindWidth + 20;
-            maxWidth = Math.max(maxWidth, width);
+        // Если открыт чат и нет биндов, показываем пример, чтобы можно было двигать
+        List<Module> drawList = keysList;
+        if (drawList.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            // Рисуем временный текст-заглушку
+            fontItem.drawString(matrix, "Пример бинда", this.getX() + 5, this.getY() + offset, ColorUtil.getText(0.5F));
+            fontItem.drawString(matrix, "[Z]", this.getX() + this.getWidth() - (int) fontItem.getStringWidth("[Z]") - 5, this.getY() + offset, ColorUtil.getClientColor());
             offset += 13;
+        } else {
+            for (Module module : drawList) {
+                String name = module.getName();
+                String bind = "[" + StringUtil.getBindName(module.getKey()) + "]";
+
+                // Название модуля (слева)
+                fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
+
+                // Бинд (справа)
+                int bindWidth = (int) fontItem.getStringWidth(bind);
+                fontItem.drawString(matrix, bind, this.getX() + this.getWidth() - bindWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
+
+                int width = (int) fontItem.getStringWidth(name) + bindWidth + 20;
+                maxWidth = Math.max(maxWidth, width);
+                offset += 13;
+            }
         }
 
         this.setWidth(maxWidth);
