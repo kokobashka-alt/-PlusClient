@@ -1,7 +1,11 @@
+
 package ru.zov.implement.features.modules.render;
 
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
@@ -22,24 +26,33 @@ import ru.zov.implement.events.render.WorldRenderEvent;
 
 public class TargetESP extends Module {
 
-    // Текстура черепа (путь: src/main/resources/assets/zov/textures/target_skull.png)
-    private static final Identifier SKULL_TEXTURE = Identifier.of("zov", "textures/target_skull.png");
+    private static final Identifier SKULL_TEXTURE =
+            Identifier.of("zov", "textures/target_skull.png");
 
     public final SelectSetting effect = new SelectSetting("Эффект", "Тип отрисовки")
             .value("Skull", "Ring", "Triangle")
             .selected("Skull");
 
-    public final BooleanSetting look = new BooleanSetting("Цвет", "Настройки цвета").setValue(true);
-    public final ValueSetting colorSetting = new ValueSetting("Цвет", "Цвет ESP")
-            .setValue(0.5f).range(0f, 1f);
+    public final BooleanSetting look =
+            new BooleanSetting("Цвет", "Настройки цвета").setValue(true);
 
-    public final BooleanSetting shape = new BooleanSetting("Форма", "Настройки размера").setValue(true);
-    public final ValueSetting radius = new ValueSetting("Радиус", "Размер черепа")
-            .setValue(1.2f).range(0.4f, 3.0f);
+    public final ValueSetting colorSetting =
+            new ValueSetting("Цвет", "Цвет ESP")
+                    .setValue(0.5f).range(0f, 1f);
 
-    public final BooleanSetting timing = new BooleanSetting("Тайминг", "Время показа").setValue(true);
-    public final ValueSetting hold = new ValueSetting("Держать", "Секунд после удара")
-            .setValue(2.3f).range(0.3f, 10.0f);
+    public final BooleanSetting shape =
+            new BooleanSetting("Форма", "Настройки размера").setValue(true);
+
+    public final ValueSetting radius =
+            new ValueSetting("Радиус", "Размер черепа")
+                    .setValue(1.2f).range(0.4f, 3.0f);
+
+    public final BooleanSetting timing =
+            new BooleanSetting("Тайминг", "Время показа").setValue(true);
+
+    public final ValueSetting hold =
+            new ValueSetting("Держать", "Секунд после удара")
+                    .setValue(2.3f).range(0.3f, 10.0f);
 
     private LivingEntity target;
     private long lastHitTime;
@@ -47,7 +60,9 @@ public class TargetESP extends Module {
 
     public TargetESP() {
         super("TargetESP", "3D ESP вокруг цели", ModuleCategory.RENDER);
-        this.setup(new Setting[]{effect, look, colorSetting, shape, radius, timing, hold});
+        setup(new Setting[]{
+                effect, look, colorSetting, shape, radius, timing, hold
+        });
     }
 
     public static TargetESP getInstance() {
@@ -62,13 +77,15 @@ public class TargetESP extends Module {
             target = null;
         }
 
-        long timeSinceHit = System.currentTimeMillis() - lastHitTime;
-        boolean shouldShow = target != null && (timeSinceHit < hold.getValue() * 1000);
+        long elapsed = System.currentTimeMillis() - lastHitTime;
+        boolean show = target != null &&
+                elapsed < hold.getValue() * 1000;
 
-        if (shouldShow) {
+        if (show) {
             fade += (1.0f - fade) * 0.15f;
         } else {
             fade -= fade * 0.15f;
+
             if (fade < 0.03f) {
                 fade = 0f;
                 target = null;
@@ -78,61 +95,96 @@ public class TargetESP extends Module {
 
     public void onHit(Entity entity) {
         if (entity instanceof LivingEntity living && living.isAlive()) {
-            this.target = living;
-            this.lastHitTime = System.currentTimeMillis();
+            target = living;
+            lastHitTime = System.currentTimeMillis();
         }
     }
 
     @EventHandler
     public void onWorldRender(WorldRenderEvent e) {
         if (fade <= 0.03f || target == null) return;
+        if (mc.player == null || mc.world == null) return;
 
-        // Получаем DrawContext из ивента (если твой WorldRenderEvent его отдает)
-        // Если нет, используем MatrixStack напрямую
-        MatrixStack matrixStack = e.getMatrixStack();
-        float tickDelta = e.getTickDelta();
-        net.minecraft.client.render.Camera camera = mc.gameRenderer.getCamera();
-        
-        Vec3d targetPos = target.getLerpedPos(tickDelta).add(0, target.getHeight() + 0.5, 0);
-        Vec3d camPos = camera.getPos();
-        
-        double x = targetPos.x - camPos.x;
-        double y = targetPos.y - camPos.y;
-        double z = targetPos.z - camPos.z;
+        MatrixStack matrices = e.stack();
+        float tickDelta = e.partialTicks();
 
-        matrixStack.push();
-        matrixStack.translate(x, y, z);
-        
-        // Поворот к камере (Billboard)
-        float pitch = camera.getPitch();
-        float yaw = camera.getYaw();
-        matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-yaw));
-        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-        
+        Camera camera = mc.gameRenderer.getCamera();
+
+        Vec3d pos = target.getLerpedPos(tickDelta)
+                .add(0, target.getHeight() + 0.5, 0);
+
+        Vec3d camPos = camera.getCameraPos();
+
+        double x = pos.x - camPos.x;
+        double y = pos.y - camPos.y;
+        double z = pos.z - camPos.z;
+
+        matrices.push();
+        matrices.translate(x, y, z);
+
+        matrices.multiply(
+                RotationAxis.POSITIVE_Y.rotationDegrees(-camera.getYaw())
+        );
+        matrices.multiply(
+                RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch())
+        );
+
         float size = radius.getValue();
+        float half = size / 2.0f;
+
         int alpha = (int) (fade * 255);
 
-        // В 1.21.11 самый надежный способ нарисовать 2D-текстуру в 3D — через DrawContext.
-        // Если у тебя WorldRenderEvent не отдает DrawContext, то используем RenderSystem напрямую.
-        // Здесь мы используем стандартный рендер текстуры.
-        
-        net.minecraft.client.gui.DrawContext context = new net.minecraft.client.gui.DrawContext(
-                mc, matrixStack, mc.getBufferBuilders().getEntityVertexConsumers(), 0, 0
-        );
-        
-        // Рисуем текстуру
-        context.drawTexture(
-                SKULL_TEXTURE, 
-                (int)(-size / 2), (int)(-size / 2), 
-                0, 0, 
-                (int)size, (int)size, 
-                (int)size, (int)size
-        );
-        
-        // Очищаем буфер, чтобы текстура отрисовалась
-        mc.getBufferBuilders().getEntityVertexConsumers().draw();
+        int red = 255;
+        int green = 255;
+        int blue = 255;
 
-        matrixStack.pop();
+        if (look.getValue()) {
+            float hue = colorSetting.getValue();
+            red = (int) (255 * hue);
+            green = (int) (255 * (1.0f - hue));
+            blue = 255;
+        }
+
+        VertexConsumerProvider.Immediate consumers =
+                mc.getBufferBuilders().getEntityVertexConsumers();
+
+        VertexConsumer vertex = consumers.getBuffer(
+                RenderLayer.getEntityTranslucent(SKULL_TEXTURE)
+        );
+
+        Matrix4f matrix = matrices.peek().getPositionMatrix();
+
+        vertex.vertex(matrix, -half, -half, 0)
+                .color(red, green, blue, alpha)
+                .texture(0, 1)
+                .overlay(0)
+                .light(15728880)
+                .normal(matrices.peek(), 0, 0, 1);
+
+        vertex.vertex(matrix, half, -half, 0)
+                .color(red, green, blue, alpha)
+                .texture(1, 1)
+                .overlay(0)
+                .light(15728880)
+                .normal(matrices.peek(), 0, 0, 1);
+
+        vertex.vertex(matrix, half, half, 0)
+                .color(red, green, blue, alpha)
+                .texture(1, 0)
+                .overlay(0)
+                .light(15728880)
+                .normal(matrices.peek(), 0, 0, 1);
+
+        vertex.vertex(matrix, -half, half, 0)
+                .color(red, green, blue, alpha)
+                .texture(0, 0)
+                .overlay(0)
+                .light(15728880)
+                .normal(matrices.peek(), 0, 0, 1);
+
+        consumers.draw(RenderLayer.getEntityTranslucent(SKULL_TEXTURE));
+
+        matrices.pop();
     }
 
     public LivingEntity getTarget() {
