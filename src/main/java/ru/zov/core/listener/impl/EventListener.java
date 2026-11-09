@@ -22,6 +22,7 @@ import ru.zov.implement.events.render.PlayerLoadEvent;
 import ru.zov.implement.features.draggables.MiniMap;
 import ru.zov.implement.features.draggables.Notifications;
 import ru.zov.implement.features.modules.render.Hud;
+import ru.zov.implement.features.modules.render.PouchHud;
 
 public class EventListener implements Listener, QuickImports {
    public static boolean serverSprint;
@@ -33,18 +34,27 @@ public class EventListener implements Listener, QuickImports {
       MiniMap.getInstance().onPlayerLoad();
    }
 
-   @EventHandler(3)
-   public void onTick(TickEvent e) {
-      --this.ticks;
-      ServerUtil.tick();
-      Hud hud = Hud.getInstance();
-      for(AbstractDraggable draggable : main.getDraggableRepository().draggable()) {
-         boolean selected = hud.isState() && hud.interfaceSettings.isSelected(draggable.getName());
-         if (draggable instanceof Notifications || selected) {
+@EventHandler(3)
+public void onTick(TickEvent e) {
+    --this.ticks;
+    ServerUtil.tick();
+
+    Hud hud = Hud.getInstance();
+    PouchHud pouchHud = PouchHud.getInstance();
+
+    for (AbstractDraggable draggable : main.getDraggableRepository().draggable()) {
+        boolean selected = hud.isState()
+                && hud.interfaceSettings.isSelected(draggable.getName());
+
+        boolean pouchSelected = pouchHud != null
+                && pouchHud.isState()
+                && pouchHud.elements.isSelected(draggable.getName());
+
+        if (draggable instanceof Notifications || selected || pouchSelected) {
             draggable.tick();
-         }
-      }
-   }
+        }
+    }
+}
 
    @EventHandler
    public void onPacket(PacketEvent e) {
