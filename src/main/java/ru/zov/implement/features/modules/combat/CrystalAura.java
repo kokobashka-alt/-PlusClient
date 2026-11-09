@@ -3,10 +3,12 @@ package ru.zov.implement.features.modules.combat;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import ru.zov.api.event.EventHandler;
@@ -19,6 +21,7 @@ import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class CrystalAura extends Module {
@@ -36,7 +39,7 @@ public class CrystalAura extends Module {
     private long lastActionTime;
 
     public CrystalAura() {
-        super("CrystalAura", "CrystalAura", ModuleCategory.COMBAT);
+        super("CrystalAura", "Автоматически ставит и взрывает кристаллы", ModuleCategory.COMBAT);
         this.setup(new Setting[]{targetRange, placeRange, breakRange, autoPlace});
     }
 
@@ -48,19 +51,20 @@ public class CrystalAura extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
 
-        // Задержка между действиями (в миллисекундах, чтобы не спамить пакетами)
+        // Задержка между действиями, чтобы не спамить пакетами
         if (System.currentTimeMillis() - lastActionTime < 50) return;
 
+        // 1. Поиск цели
         if (target == null || !target.isAlive() || mc.player.distanceTo(target) > targetRange.getValue()) {
             target = findTarget();
         }
 
         if (target == null) return;
 
-        // 1. Ищем кристаллы для взрыва
+        // 2. Взрыв кристаллов рядом с нами
         List<EndCrystalEntity> crystals = mc.world.getEntitiesByClass(
-                EndCrystalEntity.class, 
-                mc.player.getBoundingBox().expand(breakRange.getValue()), 
+                EndCrystalEntity.class,
+                mc.player.getBoundingBox().expand(breakRange.getValue()),
                 crystal -> true
         );
 
@@ -74,11 +78,11 @@ public class CrystalAura extends Module {
             }
         }
 
-        // 2. Если кристаллов нет, ищем место для установки
+        // 3. Поиск места и установка
         BlockPos placePos = findPlacePosition();
         if (placePos != null) {
-            // Если там уже стоит кристалл, не ставим второй
-            if (!mc.world.getEntitiesByClass(EndCrystalEntity.class, new net.minecraft.util.math.Box(placePos).expand(0.5), c -> true).isEmpty()) {
+            // Проверяем, нет ли уже кристалла на этом месте
+            if (!mc.world.getEntitiesByClass(EndCrystalEntity.class, new Box(placePos).expand(0.5), c -> true).isEmpty()) {
                 return;
             }
 
@@ -87,17 +91,17 @@ public class CrystalAura extends Module {
                 int oldSlot = mc.player.getInventory().selectedSlot;
                 mc.player.getInventory().selectedSlot = crystalSlot;
 
-                // Клик по блоку (наводимся на верхнюю грань)
+                // Клик по верхней грани блока
                 BlockHitResult hit = new BlockHitResult(
                         new Vec3d(placePos.getX() + 0.5, placePos.getY() + 1.0, placePos.getZ() + 0.5),
                         Direction.UP,
                         placePos,
                         false
                 );
-                
+
                 mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
                 mc.player.swingHand(Hand.MAIN_HAND);
-                
+
                 mc.player.getInventory().selectedSlot = oldSlot;
                 lastActionTime = System.currentTimeMillis();
             }
@@ -128,38 +132,29 @@ public class CrystalAura extends Module {
             for (int z = -2; z <= 2; z++) {
                 for (int y = -1; y <= 1; y++) {
                     BlockPos pos = targetPos.add(x, y, z);
-                    
-                    // Если это обсидиан или бедрок, и над ним пустое место
+
+                    // Если это обсидиан/бедрок, и над ним пустое место
                     if ((mc.world.getBlockState(pos).isOf(Blocks.OBSIDIAN) || mc.world.getBlockState(pos).isOf(Blocks.BEDROCK))
                             && mc.world.isAir(pos.up())
-                            && mc.player.getEyePos().distanceTo(Vec3d.ofCenter(pos)) <= placeRange.getValue()) {
+                            && mc.player.getEyePos().distanceTo(Vec3d.of(pos)) <= placeRange.getValue()) {
                         candidates.add(pos);
                     }
                 }
             }
         }
 
-        // Если нашли, возвращаем ближайший
+        // Сортируем по дистанции до игрока и берем ближайший
         if (!candidates.isEmpty()) {
-            candidates.sort((a, b) -> Double.compare(
-                    mc.player.getPos().squaredDistanceTo(Vec3d.ofCenter(a)),
-                    mc.player.getPos().squaredDistanceTo(Vec3d.ofCenter(b))
+            candidates.sort(Comparator.comparingDouble(pos ->
+                    mc.player.getEntityPos().squaredDistanceTo(Vec3d.of(pos))
             ));
             return candidates.get(0);
-        }
-
-        // Если авто-установка обсидиана включена и мест нет, ставим под цель (если цель стоит на земле)
-        if (autoPlace.isValue()) {
-            BlockPos belowTarget = targetPos.down();
-            if (mc.world.isAir(targetPos) && mc.world.isAir(targetPos.up()) && !mc.world.isAir(belowTarget)) {
-                 // Тут можно дописать логику установки обсидиана, но для простоты пока пропустим
-            }
         }
 
         return null;
     }
 
-    private int findItemSlot(net.minecraft.item.Item item) {
+    private int findItemSlot(Item item) {
         for (int i = 0; i < 9; i++) {
             if (mc.player.getInventory().getStack(i).isOf(item)) return i;
         }
