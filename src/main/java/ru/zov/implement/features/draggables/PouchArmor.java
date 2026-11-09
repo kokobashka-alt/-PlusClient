@@ -118,7 +118,7 @@ public class PouchArmor extends AbstractDraggable {
             fontItem.drawString(matrix, name, this.getX() + 25, this.getY() + offset + 2, ColorUtil.getText());
 
             // Прочность (по правому краю)
-            int durabilityWidth = fontItem.getStringWidth(durability);
+            int durabilityWidth = (int) fontItem.getStringWidth(durability);
             fontItem.drawString(matrix, durability, this.getX() + this.getWidth() - durabilityWidth - 5, this.getY() + offset + 2, ColorUtil.getClientColor());
 
             int width = (int) fontItem.getStringWidth(name + durability) + 40;
