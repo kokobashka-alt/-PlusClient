@@ -65,6 +65,8 @@ import ru.zov.implement.features.modules.combat.AutoCart;
 import ru.zov.implement.features.modules.combat.AutoGApple;
 import ru.zov.implement.features.modules.render.SystemHud;
 import ru.zov.implement.features.modules.render.TargetESP;
+import ru.zov.implement.features.modules.render.JumpCircle;
+import ru.zov.implement.features.modules.combat.SpearAura;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -133,7 +135,9 @@ public class ModuleRepository {
             new AutoCart(),
    new AutoGApple(),
    new SystemHud(),
-   new TargetESP()
+   new TargetESP(),
+   new SpearAura(),
+  new JumpCircle()
 );
    }
 
