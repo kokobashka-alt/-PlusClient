@@ -140,8 +140,8 @@ public class ModuleRepository {
    new TargetESP(),
    new SpearAura(),
   new JumpCircle(),
-   new CrystalAura,
-   new PouchHud
+   new CrystalAura(),
+   new PouchHud()
 );
    }
 
