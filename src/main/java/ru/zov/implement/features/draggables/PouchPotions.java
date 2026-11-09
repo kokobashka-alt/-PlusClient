@@ -4,11 +4,13 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.entity.PlayerIntersectionUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +21,6 @@ public class PouchPotions extends AbstractDraggable {
     private final List<StatusEffectInstance> effects = new ArrayList<>();
 
     public PouchPotions() {
-        // Координаты x=10, y=60 (под ватермаркой)
         super("PouchPotions", 10, 60, 120, 25, true);
     }
 
@@ -33,6 +34,10 @@ public class PouchPotions extends AbstractDraggable {
 
     @Override
     public boolean visible() {
+        // Если открыт чат, принудительно показываем элемент для перетаскивания
+        if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            return true;
+        }
         return !effects.isEmpty();
     }
 
@@ -76,30 +81,43 @@ public class PouchPotions extends AbstractDraggable {
         int offset = 23;
         int maxWidth = 120;
 
-        for (StatusEffectInstance effect : effects) {
-            String name = getEffectName(effect);
-            String time = getEffectDuration(effect);
-            
-            int amplifier = effect.getAmplifier();
-            String level = amplifier > 0 ? " " + (amplifier + 1) : "";
-
-            // Иконка эффекта
+        // Если открыт чат и эффектов нет, показываем фейковый эффект для перетаскивания
+        if (effects.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            // Рисуем иконку SPEED (как заглушку)
             context.drawGuiTexture(
                     RenderPipelines.GUI_TEXTURED,
-                    net.minecraft.client.gui.hud.InGameHud.getEffectTexture(effect.getEffectType()),
+                    net.minecraft.client.gui.hud.InGameHud.getEffectTexture(StatusEffects.SPEED),
                     (int) this.getX() + 5, (int) this.getY() + offset - 2, 8, 8
             );
-
-            // Название эффекта (слева)
-            fontPotion.drawString(matrix, name + level, this.getX() + 18, this.getY() + offset + 1, ColorUtil.getText());
-
-            // Время (справа)
-            int timeWidth = (int) fontPotion.getStringWidth(time);
-            fontPotion.drawString(matrix, time, this.getX() + this.getWidth() - timeWidth - 5, this.getY() + offset + 1, ColorUtil.getText(0.7F));
-
-            int width = (int) fontPotion.getStringWidth(name + level + time) + 30;
-            maxWidth = Math.max(maxWidth, width);
+            fontPotion.drawString(matrix, "Скорость", this.getX() + 18, this.getY() + offset + 1, ColorUtil.getText(0.5F));
+            fontPotion.drawString(matrix, "1:00", this.getX() + this.getWidth() - (int) fontPotion.getStringWidth("1:00") - 5, this.getY() + offset + 1, ColorUtil.getText(0.5F));
             offset += 12;
+        } else {
+            for (StatusEffectInstance effect : effects) {
+                String name = getEffectName(effect);
+                String time = getEffectDuration(effect);
+
+                int amplifier = effect.getAmplifier();
+                String level = amplifier > 0 ? " " + (amplifier + 1) : "";
+
+                // Иконка эффекта
+                context.drawGuiTexture(
+                        RenderPipelines.GUI_TEXTURED,
+                        net.minecraft.client.gui.hud.InGameHud.getEffectTexture(effect.getEffectType()),
+                        (int) this.getX() + 5, (int) this.getY() + offset - 2, 8, 8
+                );
+
+                // Название эффекта (слева)
+                fontPotion.drawString(matrix, name + level, this.getX() + 18, this.getY() + offset + 1, ColorUtil.getText());
+
+                // Время (справа)
+                int timeWidth = (int) fontPotion.getStringWidth(time);
+                fontPotion.drawString(matrix, time, this.getX() + this.getWidth() - timeWidth - 5, this.getY() + offset + 1, ColorUtil.getText(0.7F));
+
+                int width = (int) fontPotion.getStringWidth(name + level + time) + 30;
+                maxWidth = Math.max(maxWidth, width);
+                offset += 12;
+            }
         }
 
         this.setWidth(maxWidth);
