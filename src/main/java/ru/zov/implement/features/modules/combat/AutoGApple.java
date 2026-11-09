@@ -16,7 +16,9 @@ import ru.zov.implement.events.player.TickEvent;
 public class AutoGApple extends Module {
 
     private final ValueSetting healthThreshold = new ValueSetting(
-        "Здоровье", "Порог здоровья для еды", 16.0f).range(3.0f, 20.0f);
+    "Здоровье", "Порог здоровья для еды")
+    .setValue(16.0f)
+    .range(3.0f, 20.0f);
     private final BooleanSetting smartMode = new BooleanSetting(
         "Умный", "Есть из хотбара, иначе только с левой руки").setValue(true);
     private final BooleanSetting goldenHearts = new BooleanSetting(
