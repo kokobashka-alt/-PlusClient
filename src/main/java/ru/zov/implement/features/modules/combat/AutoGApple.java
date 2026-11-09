@@ -1,8 +1,8 @@
 package ru.zov.implement.features.modules.combat;
 
 import lombok.Generated;
-import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 
 import ru.zov.api.event.EventHandler;
 import ru.zov.api.feature.module.Module;
@@ -16,13 +16,16 @@ import ru.zov.implement.events.player.TickEvent;
 public class AutoGApple extends Module {
 
     private final ValueSetting healthThreshold = new ValueSetting(
-    "Здоровье", "Порог здоровья для еды")
-    .setValue(16.0f)
-    .range(3.0f, 20.0f);
+        "Здоровье", "Порог здоровья для еды")
+        .setValue(16.0f)
+        .range(3.0f, 20.0f);
+
     private final BooleanSetting smartMode = new BooleanSetting(
         "Умный", "Есть из хотбара, иначе только с левой руки").setValue(true);
+
     private final BooleanSetting goldenHearts = new BooleanSetting(
         "Золотые сердца", "Учитывать absorption").setValue(true);
+
     private final BooleanSetting returnSlot = new BooleanSetting(
         "Возвращать слот", "Возвращать предыдущий слот после еды").setValue(true);
 
@@ -39,13 +42,13 @@ public class AutoGApple extends Module {
     }
 
     @Override
-    public void onEnable() {
+    public void activate() {
         isEating = false;
         previousSlot = -1;
     }
 
     @Override
-    public void onDisable() {
+    public void deactivate() {
         stopEating();
     }
 
@@ -123,7 +126,7 @@ public class AutoGApple extends Module {
     private void swapToGappleSlot() {
         int gappleSlot = findGappleInHotbar();
         if (gappleSlot == -1) return;
-        int currentSlot = mc.player.getInventory().getSelectedSlot();
+        int currentSlot = mc.player.getInventory().selectedSlot;
         if (currentSlot == gappleSlot) return;
 
         if (previousSlot == -1 && returnSlot.isValue()) {
@@ -149,21 +152,15 @@ public class AutoGApple extends Module {
         }
     }
 
-    /** Совместимость: в 1.21.x метод мог переименоваться. */
     private void selectSlot(int slot) {
-        try {
-            mc.player.getInventory().setSelectedSlot(slot);
-        } catch (NoSuchMethodError ex) {
-            // если метода нет — правый клик по слоту через PlayerInventoryUtil
-            // или поле selectedSlot через аксессор:
-            // mc.player.getInventory().selectedSlot = slot;
-        }
+        mc.player.getInventory().selectedSlot = slot;
+        mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(slot));
     }
 
-    @Generated public ValueSetting  getHealthThreshold() { return healthThreshold; }
-    @Generated public BooleanSetting getSmartMode()      { return smartMode; }
-    @Generated public BooleanSetting getGoldenHearts()   { return goldenHearts; }
-    @Generated public BooleanSetting getReturnSlot()     { return returnSlot; }
-    @Generated public boolean        isEating()          { return isEating; }
-    @Generated public int            getPreviousSlot()   { return previousSlot; }
+    @Generated public ValueSetting   getHealthThreshold() { return healthThreshold; }
+    @Generated public BooleanSetting getSmartMode()       { return smartMode; }
+    @Generated public BooleanSetting getGoldenHearts()    { return goldenHearts; }
+    @Generated public BooleanSetting getReturnSlot()      { return returnSlot; }
+    @Generated public boolean        isEating()           { return isEating; }
+    @Generated public int            getPreviousSlot()    { return previousSlot; }
 }
