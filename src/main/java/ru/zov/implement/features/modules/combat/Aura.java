@@ -1198,7 +1198,7 @@ public boolean canCrit(ClientPlayerEntity clientPlayerEntity, int i) {
                 && !simulatedPlayer.onGround
                 && !simulatedPlayer.isFallFlying
                 && !simulatedPlayer.touchingWater
-                && !simulatedPlayer.isSubmergedInWater
+                && !simulatedPlayer.isSubmergedInWater()
                 && !simulatedPlayer.isInLava()
                 && !simulatedPlayer.isClimbing()
                 && !player.hasVehicle()
