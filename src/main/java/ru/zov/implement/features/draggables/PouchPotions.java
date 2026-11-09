@@ -1,10 +1,14 @@
-
 package ru.zov.implement.features.draggables;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import ru.zov.api.feature.draggable.AbstractDraggable;
+import ru.zov.api.system.font.FontRenderer;
+import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
+import ru.zov.common.util.color.ColorUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,22 +18,14 @@ public class PouchPotions extends AbstractDraggable {
     private final MinecraftClient mc = MinecraftClient.getInstance();
     private final List<StatusEffectInstance> effects = new ArrayList<>();
 
-    private static final int MIN_WIDTH = 150;
-    private static final int HEADER_HEIGHT = 22;
-    private static final int ROW_HEIGHT = 17;
-
-    private static final int BACKGROUND = 0xAA101010;
-    private static final int ACCENT = 0xFF8B5CF6;
-    private static final int TEXT_COLOR = 0xFFFFFFFF;
-
     public PouchPotions() {
-        super("PouchPotions", 300, 100, 120, 25, true);
+        // Координаты x=10, y=60 (под ватермаркой)
+        super("PouchPotions", 10, 60, 120, 25, true);
     }
 
     @Override
     public void tick() {
         effects.clear();
-
         if (mc.player != null) {
             effects.addAll(mc.player.getStatusEffects());
         }
@@ -42,14 +38,9 @@ public class PouchPotions extends AbstractDraggable {
 
     private String getEffectDuration(StatusEffectInstance effect) {
         int ticks = effect.getDuration();
-
-        if (ticks == Integer.MAX_VALUE) {
-            return "∞";
-        }
-
+        if (ticks == Integer.MAX_VALUE || effect.isInfinite()) return "∞";
         int seconds = ticks / 20;
         int minutes = seconds / 60;
-
         return String.format("%d:%02d", minutes, seconds % 60);
     }
 
@@ -59,66 +50,59 @@ public class PouchPotions extends AbstractDraggable {
 
     @Override
     public void drawDraggable(DrawContext context) {
-        int x = (int) getX();
-        int y = (int) getY();
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
+        FontRenderer fontPotion = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        int width = MIN_WIDTH;
-        int height = HEADER_HEIGHT + effects.size() * ROW_HEIGHT;
+        // Заголовок
+        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
+                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
 
-        for (StatusEffectInstance effect : effects) {
-            String name = getEffectName(effect);
-            String level = " " + (effect.getAmplifier() + 1);
-            String time = getEffectDuration(effect);
+        // Основной фон
+        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
+                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
-            int textWidth = mc.textRenderer.getWidth(name + level);
-            int timeWidth = mc.textRenderer.getWidth(time);
+        // Заголовок по центру
+        float centerX = this.getX() + this.getWidth() / 2.0F;
+        String header = "Potions";
+        font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
 
-            width = Math.max(width, textWidth + timeWidth + 20);
-        }
+        // Полоска акцента
+        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
+                .color(ColorUtil.getClientColor()).build());
 
-        context.fill(x, y, x + width, y + height, BACKGROUND);
-        context.fill(x, y, x + 2, y + height, ACCENT);
-
-        context.drawText(
-                mc.textRenderer,
-                "Potions",
-                x + 7,
-                y + 6,
-                ACCENT,
-                false
-        );
-
-        int offset = HEADER_HEIGHT;
+        int offset = 23;
+        int maxWidth = 120;
 
         for (StatusEffectInstance effect : effects) {
             String name = getEffectName(effect);
-            String level = " " + (effect.getAmplifier() + 1);
             String time = getEffectDuration(effect);
+            
+            int amplifier = effect.getAmplifier();
+            String level = amplifier > 0 ? " " + (amplifier + 1) : "";
 
-            context.drawText(
-                    mc.textRenderer,
-                    name + level,
-                    x + 7,
-                    y + offset,
-                    TEXT_COLOR,
-                    false
+            // Иконка эффекта
+            context.drawGuiTexture(
+                    RenderPipelines.GUI_TEXTURED,
+                    net.minecraft.client.gui.hud.InGameHud.getEffectTexture(effect.getEffectType()),
+                    (int) this.getX() + 5, (int) this.getY() + offset - 2, 8, 8
             );
 
-            int timeWidth = mc.textRenderer.getWidth(time);
+            // Название эффекта (слева)
+            fontPotion.drawString(matrix, name + level, this.getX() + 18, this.getY() + offset + 1, ColorUtil.getText());
 
-            context.drawText(
-                    mc.textRenderer,
-                    time,
-                    x + width - timeWidth - 7,
-                    y + offset,
-                    ACCENT,
-                    false
-            );
+            // Время (справа)
+            int timeWidth = fontPotion.getStringWidth(time);
+            fontPotion.drawString(matrix, time, this.getX() + this.getWidth() - timeWidth - 5, this.getY() + offset + 1, ColorUtil.getText(0.7F));
 
-            offset += ROW_HEIGHT;
+            int width = (int) fontPotion.getStringWidth(name + level + time) + 30;
+            maxWidth = Math.max(maxWidth, width);
+            offset += 12;
         }
 
-        setWidth(width);
-        setHeight(height);
+        this.setWidth(maxWidth);
+        this.setHeight(offset + 5);
     }
 }
