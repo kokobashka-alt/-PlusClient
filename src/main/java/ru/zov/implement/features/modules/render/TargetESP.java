@@ -149,7 +149,7 @@ public class TargetESP extends Module {
                 mc.getBufferBuilders().getEntityVertexConsumers();
 
         VertexConsumer vertex = consumers.getBuffer(
-                RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE)
+                RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE, false)
         );
 
         Matrix4f matrix = matrices.peek().getPositionMatrix();
@@ -182,7 +182,7 @@ public class TargetESP extends Module {
                 .light(15728880)
                 .normal(matrices.peek(), 0, 0, 1);
 
-        consumers.draw(RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE));
+        consumers.draw(RenderLayer.getEntityCutoutNoCull(SKULL_TEXTURE, false));
 
         matrices.pop();
     }
