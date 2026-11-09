@@ -19,14 +19,13 @@ import ru.zov.implement.features.draggables.StaffList;
 import ru.zov.implement.features.draggables.TargetHud;
 import ru.zov.implement.features.draggables.Watermark;
 import ru.zov.implement.features.draggables.SystemUseTracker;
-import ru.zov.implement.features.draggables.pouch.PouchWatermark;
-import ru.zov.implement.features.draggables.pouch.PouchHotKeys;
-import ru.zov.implement.features.draggables.pouch.PouchPotions;
-import ru.zov.implement.features.draggables.pouch.PouchStaffList;
-import ru.zov.implement.features.draggables.pouch.PouchTargetInfo;
-import ru.zov.implement.features.draggables.pouch.PouchArmor;
-import ru.zov.implement.features.draggables.pouch.PouchCooldowns;
-
+import ru.zov.implement.features.draggables.PouchWatermark;
+import ru.zov.implement.features.draggables.PouchHotKeys;
+import ru.zov.implement.features.draggables.PouchPotions;
+import ru.zov.implement.features.draggables.PouchStaffList;
+import ru.zov.implement.features.draggables.PouchTargetInfo;
+import ru.zov.implement.features.draggables.PouchArmor;
+import ru.zov.implement.features.draggables.PouchCooldowns;
 public class DraggableRepository {
    private final List<AbstractDraggable> draggable = new ArrayList<>();
 
