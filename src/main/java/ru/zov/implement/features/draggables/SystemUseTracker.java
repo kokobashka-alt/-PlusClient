@@ -2,12 +2,14 @@ package ru.zov.implement.features.draggables;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.MathHelper;
+
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.animation.Animation;
 import ru.zov.api.system.animation.Direction;
@@ -19,22 +21,25 @@ import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
 import ru.zov.common.util.math.MathUtil;
 import ru.zov.common.util.render.Render2DUtil;
-import ru.zov.implement.features.modules.render.Hud;
 import ru.zov.implement.features.modules.render.SystemHud;
 
 public class SystemUseTracker extends AbstractDraggable {
     private final List<TrackedPlayer> trackedPlayers = new ArrayList<>();
 
     public SystemUseTracker() {
-        super("System Use Tracker", 200, 100, 100, 23, true);
+        super("Use Tracker", 200, 100, 100, 23, true);
     }
 
+    @Override
     public boolean visible() {
+        if (SystemHud.getInstance() == null || !SystemHud.getInstance().isState()) {
+            return false;
+        }
         return !this.trackedPlayers.isEmpty() || PlayerIntersectionUtil.isChat(mc.currentScreen);
     }
 
+    @Override
     public void tick() {
-        // Проверяем, включен ли наш новый SystemHud
         if (SystemHud.getInstance() == null || !SystemHud.getInstance().isState()) {
             trackedPlayers.clear();
             return;
@@ -43,15 +48,17 @@ public class SystemUseTracker extends AbstractDraggable {
         if (mc.world == null || mc.player == null) return;
 
         List<PlayerEntity> currentUsers = new ArrayList<>();
-        
+
         // Ищем всех игроков в радиусе 30 блоков, кто использует предмет
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player || player.isDead()) continue;
-            
+
             if (player.isUsingItem() && !player.getActiveItem().isEmpty()) {
                 ItemStack item = player.getActiveItem();
-                // Нас интересуют только еда, зелья и щиты
-                if (item.isFood() || item.isOf(Items.POTION) || item.isOf(Items.SHIELD) || item.isOf(Items.GOLDEN_APPLE) || item.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
+                
+                // Проверка: еда (через DataComponentTypes), зелья или щиты
+                boolean isFood = item.contains(DataComponentTypes.FOOD);
+                if (isFood || item.isOf(Items.POTION) || item.isOf(Items.SHIELD) || item.isOf(Items.GOLDEN_APPLE) || item.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
                     if (player.distanceTo(mc.player) <= 30.0f) {
                         currentUsers.add(player);
                     }
@@ -83,6 +90,7 @@ public class SystemUseTracker extends AbstractDraggable {
         });
     }
 
+    @Override
     public void drawDraggable(DrawContext context) {
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
         FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
@@ -98,7 +106,7 @@ public class SystemUseTracker extends AbstractDraggable {
             .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
         float centerX = this.getX() + this.getWidth() / 2.0F;
-        font.drawCenteredString(matrix, "Use Tracker", centerX, this.getY() + 7, ColorUtil.getText());
+        font.drawCenteredString(matrix, this.getName(), centerX, this.getY() + 7, ColorUtil.getText());
 
         int offset = 23;
         int maxWidth = 100;
@@ -159,7 +167,7 @@ public class SystemUseTracker extends AbstractDraggable {
     }
 
     private String getActionText(ItemStack item) {
-        if (item.isFood()) {
+        if (item.contains(DataComponentTypes.FOOD)) {
             if (item.isOf(Items.GOLDEN_APPLE)) return "Ест голд яблоко";
             if (item.isOf(Items.ENCHANTED_GOLDEN_APPLE)) return "Ест зачар. яблоко";
             return "Ест еду";
