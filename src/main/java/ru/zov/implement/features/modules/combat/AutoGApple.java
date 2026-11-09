@@ -33,7 +33,7 @@ public class AutoGApple extends Module {
     private int previousSlot = -1;
 
     public AutoGApple() {
-        super("AutoGApple", "Автоматически ест золотые яблоки", ModuleCategory.COMBAT);
+        super("AutoGApple", "Аutogapple", ModuleCategory.COMBAT);
         this.setup(new Setting[]{ healthThreshold, smartMode, goldenHearts, returnSlot });
     }
 
