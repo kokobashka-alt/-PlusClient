@@ -21,6 +21,7 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
+import ru.zov.implement.features.modules.combat.killaura.ui.ModuleTab
 
 public class AimAssist extends Module {
 
@@ -44,7 +45,7 @@ public class AimAssist extends Module {
             .setValue(false);
 
     public AimAssist() {
-        super("AimAssist", "Автоматическая наводка на цель", ModuleCategory.COMBAT);
+        super("AimAssist", "CombatAim(systemdlc)", ModuleTab.COMBAT);
         this.setup(new Setting[]{rotationMode, speed, distance, fov, priority, sticky, onlyWeapon});
     }
 
