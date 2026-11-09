@@ -161,7 +161,6 @@ public final class Aura extends Module {
 
     public LivingEntity lastTarget;
     public final int[] funtimeAttackDelays;
-
     public final int[] smoothAttackDelays;
     public final int[] grimAttackDelays;
 
@@ -195,7 +194,7 @@ public final class Aura extends Module {
     private EntityPose visualSprintPose;
     private boolean visualSprintSwimming;
     private float visualSprintLeaningPitch;
-
+    
     // Для логики FunTime (выбор точек)
     private LivingEntity lastPointTarget;
     private int pointHitCount = -1;
@@ -287,369 +286,361 @@ public final class Aura extends Module {
         this.visualSprintPose = EntityPose.STANDING;
         
         addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync);
-        
-        register(UseItemEvent.class, class059Var -> {
-            if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
-                class059Var.cancel();
-            }
-        });
-        register(PacketSendEvent.class, class037Var -> {
-            if (isState() && this.mc.isWorldLoaded() && this.target != null) {
-                if ((class037Var.getPacket() instanceof HandSwingC2SPacket)
-                        || (class037Var.getPacket() instanceof UpdateSelectedSlotC2SPacket
-                                && !this.maceInternalSlotChange)) {
-                    this.attackCooldown = Math.max(0, Math.round(getAttackDelay() * (this.tpsSync.isValue() ? 20.0f / MathUtil.clamp(ServerUtil.TPS, 1.0f, 20.0f) : 1.0f)));
-                }
-            }
-        });
-        register(PacketReceiveEvent.class, class051Var -> {
-            if (isState() && this.mc.isWorldLoaded() && this.target != null) {
-                if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
-                    EntityStatusS2CPacket entityStatusS2CPacket = packet;
-                    if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
-                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
-                    }
-                }
-            }
-        });
-        register(PlayerTickEvent.class, class130Var -> {
-            if (this.mc.isWorldLoaded() && class130Var.isPre()) {
-                ClientPlayerEntity player = this.mc.getPlayer();
-                if (player != null
-                        && this.maxDamageRestoreAtAge != Integer.MIN_VALUE
-                        && player.age >= this.maxDamageRestoreAtAge) {
-                    restoreMaxDamageItem(player);
-                }
-                if (player != null
-                        && this.maceRestoreAtAge != Integer.MIN_VALUE
-                        && player.age >= this.maceRestoreAtAge) {
-                    queueMaceRestore(player);
-                }
-                this.actionScheduler.cleanupIfFinished().update();
-            }
-        });
-        register(MovementUpdateEvent.class, class308Var -> {
-            if (isState()
-                    && this.mc.isWorldLoaded()
-                    && class308Var.getDirectionalInput().isMoving()
-                    && this.sprintTicks > 0
-                    && class308Var.isSprint()
-                    && shouldResetSprintForAttack(this.mc.getPlayer(), 0)) {
-                class308Var.setStopProgression(true);
-                class308Var.setSprint(false);
-            }
-        }, EventPriority.HIGH);
-        register(RotationUpdateEvent.class, class345Var -> {
-            if (this.mc.isWorldLoaded()) {
-                ClientPlayerInteractionManager interactionManager = Mc.INSTANCE.getInteractionManager();
-                ClientPlayerEntity player = this.mc.getPlayer();
-                RotationManager rotationManager = RotationManager.INSTANCE;
-                switch (EventPhaseSwitchMap.phaseOrdinals[class345Var.stage().ordinal()]) {
-                    case 1:
-                        updateRotation(player, rotationManager);
-break;
-                    case 2:
-                        performAttack(player, interactionManager, rotationManager);
-                        break;
-                }
-            }
-        });
-        register(MovementInputEvent.class, class040Var -> {
-            ClientPlayerEntity player;
-            if (!isState()
-                    || !this.mc.isWorldLoaded()
-                    || (player = this.mc.getPlayer()) == null
-                    || this.target == null) {
-                resetSpookyDistanceControl();
-                return;
-            }
-
-            if (isSpookyTimeMode(this.rotationMode.currentValue())
-                    && (this.moveCorrectionMode.isSelected(MoveCorrectionMode.FOCUS)
-                            || this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET))) {
-                boolean targetCorrection =
-                        this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET);
-                if (targetCorrection || this.mc.getGameOptions().forwardKey.isPressed()) {
-                    class040Var.setInput(createSpookyDistanceInput(player));
-                }
-                return;
-            }
-
-            resetSpookyDistanceControl();
-            if (this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET)) {
-                class040Var.setInput(MovementInputHelper.getDirectionalInputForDegrees(
-                        DirectionalInput.NONE,
-                        MovementInputHelper.getDegreesRelativeToView(
-                                this.target.getEntityPos().subtract(player.getEntityPos()),
-                                player.getYaw())));
-                if (player.isSwimming()) {
-                    class040Var.setJumping(
-                            this.target.getEyeY()
-                                    > player.getEyeY() - (player.isSwimming() ? 0.0D : 1.0D));
-                }
-            }
-        }, EventPriority.HIGH);
-    }
-
-    public void updateRotation(ClientPlayerEntity clientPlayerEntity, RotationManager rotationManager) {
-        int i;
-        int i2;
-        AuraRotationMode selectedMode = this.rotationMode.currentValue();
-        if (selectedMode != this.observedRotationMode) {
-            if (isSpookyTimeMode(selectedMode)
-                    || isSpookyTimeMode(this.observedRotationMode)) {
-                this.spookyTimeRotationMode.reset();
-                this.spookyAimPoint = null;
-            }
-            this.observedRotationMode = selectedMode;
+            register(UseItemEvent.class, class059Var -> {
+        if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
+            class059Var.cancel();
         }
-        boolean spookyTime = isSpookyTimeMode(selectedMode);
-        if (isState()) {
-            if (this.autoMace.isValue()) {
-                updateMaceFallState(clientPlayerEntity);
-            } else {
-                this.maceAttackedThisFall = false;
-                requestMaceRestore(clientPlayerEntity, 0);
+    });
+    register(PacketSendEvent.class, class037Var -> {
+        if (isState() && this.mc.isWorldLoaded() && this.target != null) {
+            if ((class037Var.getPacket() instanceof HandSwingC2SPacket)
+                    || (class037Var.getPacket() instanceof UpdateSelectedSlotC2SPacket
+                            && !this.maceInternalSlotChange)) {
+                this.attackCooldown = Math.max(0, Math.round(getAttackDelay() * (this.tpsSync.isValue() ? 20.0f / MathUtil.clamp(ServerUtil.TPS, 1.0f, 20.0f) : 1.0f)));
             }
-            this.target = findTarget(clientPlayerEntity, true);
-            if (this.target == null) {
-                finishAuraRotationWithoutReturn(clientPlayerEntity, rotationManager);
-                this.auraRotationActive = false;
-                this.spookyAimPoint = null;
-                requestMaceRestore(clientPlayerEntity, 0);
-                restoreMaxDamageItem(clientPlayerEntity);
-                return;
-            }
-            if (this.autoMace.isValue()) {
-                prepareMaceForDive(clientPlayerEntity);
-            }
-            boolean maceDiveAim = isMaceDiveAimActive(clientPlayerEntity, this.target);
-            float fCurrentValue = maceDiveAim
-                    ? getMaceAimDistance(clientPlayerEntity, this.target)
-                    : this.maxDistance.currentValue() + this.extraDistance.currentValue();
-            if (clientPlayerEntity.isCreative()) {
-                fCurrentValue = (float) Math.max(fCurrentValue, clientPlayerEntity.getEntityInteractionRange());
-            }
-            RotationMode selectedRotationMode = getRotationMode();
-            Vec3d aimPoint;
-            if (spookyTime) {
-                Optional<HitPointResolver.StableAimPoint> resolvedAimPoint = this.hitPointResolver.resolveStablePoint(
-                        this.target,
-                        clientPlayerEntity,
-                        fCurrentValue,
-                        rotationManager.getCurrentRotation(),
-                        this.ignoreWalls.isValue(),
-                        this.spookyAimPoint,
-                        SPOOKY_AIM_POINT_SWITCH_MARGIN
-                );
-                if (resolvedAimPoint.isEmpty()) {
-                    this.spookyAimPoint = null;
-                    this.lastTarget = this.target;
-                    return;
-                }
-                this.spookyAimPoint = resolvedAimPoint.get();
-                aimPoint = this.spookyAimPoint.point();
-            } else {
-                if (selectedMode == AuraRotationMode.FUNTIME) {
-                    aimPoint = getFunTimeAimPoint(this.target, fCurrentValue, clientPlayerEntity);
-                } else {
-                    aimPoint = (Vec3d) this.hitPointResolver.computeVector(
-                            this.target,
-                            fCurrentValue,
-                            rotationManager.getCurrentRotation(),
-                            selectedRotationMode.randomValue(),
-                            false
-                    ).getLeft();
+        }
+    });
+    register(PacketReceiveEvent.class, class051Var -> {
+        if (isState() && this.mc.isWorldLoaded() && this.target != null) {
+            if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
+                EntityStatusS2CPacket entityStatusS2CPacket = packet;
+                if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
+                    AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
                 }
             }
-            Vec3d vec3dSubtract = aimPoint.subtract(clientPlayerEntity.getEyePos());
-            if (vec3dSubtract == null) {
-                return;
+        }
+    });
+    register(PlayerTickEvent.class, class130Var -> {
+        if (this.mc.isWorldLoaded() && class130Var.isPre()) {
+            ClientPlayerEntity player = this.mc.getPlayer();
+            if (player != null
+                    && this.maxDamageRestoreAtAge != Integer.MIN_VALUE
+                    && player.age >= this.maxDamageRestoreAtAge) {
+                restoreMaxDamageItem(player);
             }
-            Rotation targetRotation = RotationMath.INSTANCE.fromVec3d(vec3dSubtract);
-            if (maceDiveAim) {
-                Optional<Float> predictedPitch = predictMaceImpactPitch(
-                        clientPlayerEntity,
-                        this.target);
-                if (predictedPitch.isPresent()) {
-                    targetRotation = new Rotation(
-                            targetRotation.getYaw(),
-                            predictedPitch.get());
-                }
+            if (player != null
+                    && this.maceRestoreAtAge != Integer.MIN_VALUE
+                    && player.age >= this.maceRestoreAtAge) {
+                queueMaceRestore(player);
             }
-            if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
-                i = 2;
-            } else {
-                i = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 20 : 5;
+            this.actionScheduler.cleanupIfFinished().update();
+        }
+    });
+    register(MovementUpdateEvent.class, class308Var -> {
+        if (isState()
+                && this.mc.isWorldLoaded()
+                && class308Var.getDirectionalInput().isMoving()
+                && this.sprintTicks > 0
+                && class308Var.isSprint()
+                && shouldResetSprintForAttack(this.mc.getPlayer(), 0)) {
+            class308Var.setStopProgression(true);
+            class308Var.setSprint(false);
+        }
+    }, EventPriority.HIGH);
+    register(RotationUpdateEvent.class, class345Var -> {
+        if (this.mc.isWorldLoaded()) {
+            ClientPlayerInteractionManager interactionManager = Mc.INSTANCE.getInteractionManager();
+            ClientPlayerEntity player = this.mc.getPlayer();
+            RotationManager rotationManager = RotationManager.INSTANCE;
+            switch (EventPhaseSwitchMap.phaseOrdinals[class345Var.stage().ordinal()]) {
+                case 1:
+                    updateRotation(player, rotationManager);
+                    break;
+                case 2:
+                    performAttack(player, interactionManager, rotationManager);
+                    break;
             }
-            int i3 = i;
-            if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
-                i2 = 4;
-            } else {
-                i2 = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 5 : 0;
+        }
+    });
+    register(MovementInputEvent.class, class040Var -> {
+        ClientPlayerEntity player;
+        if (!isState()
+                || !this.mc.isWorldLoaded()
+                || (player = this.mc.getPlayer()) == null
+                || this.target == null) {
+            resetSpookyDistanceControl();
+            return;
+        }
+
+        if (isSpookyTimeMode(this.rotationMode.currentValue())
+                && (this.moveCorrectionMode.isSelected(MoveCorrectionMode.FOCUS)
+                        || this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET))) {
+            boolean targetCorrection =
+                    this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET);
+            if (targetCorrection || this.mc.getGameOptions().forwardKey.isPressed()) {
+                class040Var.setInput(createSpookyDistanceInput(player));
             }
-            int i4 = i2;
-            if (!maceDiveAim
-                    && !this.rotationMode.isSelected(AuraRotationMode.GRIM)
-                    && i4 > 0
-                    && !canAttack(clientPlayerEntity, i4)) {
-                this.lastTarget = this.target;
-            } else {
-                rotationManager.scheduleRotation(new RotationVector(targetRotation, vec3dSubtract), this.target, new RotationConfig(selectedRotationMode, false, !this.moveCorrectionMode.isSelected(MoveCorrectionMode.NONE), this.moveCorrectionMode.isSelected(MoveCorrectionMode.FOCUS)), 1, this, i3);
-                this.auraRotationActive = true;
-                this.lastTarget = this.target;
+            return;
+        }
+
+        resetSpookyDistanceControl();
+        if (this.moveCorrectionMode.isSelected(MoveCorrectionMode.TARGET)) {
+            class040Var.setInput(MovementInputHelper.getDirectionalInputForDegrees(
+                    DirectionalInput.NONE,
+                    MovementInputHelper.getDegreesRelativeToView(
+                            this.target.getEntityPos().subtract(player.getEntityPos()),
+                            player.getYaw())));
+            if (player.isSwimming()) {
+                class040Var.setJumping(
+                        this.target.getEyeY()
+                                > player.getEyeY() - (player.isSwimming() ? 0.0D : 1.0D));
             }
-        } else {
+        }
+    }, EventPriority.HIGH);
+}
+
+public void updateRotation(ClientPlayerEntity clientPlayerEntity, RotationManager rotationManager) {
+    int i;
+    int i2;
+    AuraRotationMode selectedMode = this.rotationMode.currentValue();
+    if (selectedMode != this.observedRotationMode) {
+        if (isSpookyTimeMode(selectedMode)
+                || isSpookyTimeMode(this.observedRotationMode)) {
             this.spookyTimeRotationMode.reset();
+            this.spookyAimPoint = null;
+        }
+        this.observedRotationMode = selectedMode;
+    }
+    boolean spookyTime = isSpookyTimeMode(selectedMode);
+    if (isState()) {
+        if (this.autoMace.isValue()) {
+            updateMaceFallState(clientPlayerEntity);
+        } else {
+            this.maceAttackedThisFall = false;
+            requestMaceRestore(clientPlayerEntity, 0);
+        }
+        this.target = findTarget(clientPlayerEntity, true);
+        if (this.target == null) {
+            finishAuraRotationWithoutReturn(clientPlayerEntity, rotationManager);
+            this.auraRotationActive = false;
             this.spookyAimPoint = null;
             requestMaceRestore(clientPlayerEntity, 0);
             restoreMaxDamageItem(clientPlayerEntity);
-        }
-    }
-
-    private Vec3d getFunTimeAimPoint(LivingEntity target, float range, ClientPlayerEntity player) {
-        if (target != lastPointTarget) {
-            lastPointTarget = target;
-            pointHitCount = -1;
-        }
-
-        Box box = target.getBoundingBox();
-        
-        List<Vec3d> points = new ArrayList<>();
-        for (double x = 0.1; x < 0.9; x += 0.4) {
-            for (double y = 0.2; y < 0.9; y += 0.3) {
-                for (double z = 0.1; z < 0.9; z += 0.4) {
-                    points.add(new Vec3d(
-                        MathHelper.lerp(x, box.minX, box.maxX),
-                        MathHelper.lerp(y, box.minY, box.maxY),
-                        MathHelper.lerp(z, box.minZ, box.maxZ)
-                    ));
-                }
-            }
-        }
-
-        pointHitCount = hitCounter;
-        return points.get((int) (Math.random() * points.size()));
-    }
-
-    public static Aura getInstance() {
-        return instance;
-    }
-
-    public void performAttack(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager, RotationManager rotationManager) {
-        if (this.attackCooldown > 0) {
-            this.attackCooldown--;
-        }
-        if (this.sprintTicks > 0) {
-            this.sprintTicks--;
-        }
-        if (!isState() || this.target == null) {
-            restoreMaxDamageItem(clientPlayerEntity);
             return;
         }
-        if (this.autoMace.isValue()
-                && (this.maceSwapScheduled
-                        || this.maceRestoreScheduled)) {
-            return;
+        if (this.autoMace.isValue()) {
+            prepareMaceForDive(clientPlayerEntity);
         }
-        float fCurrentValue = this.maxDistance.currentValue();
+        boolean maceDiveAim = isMaceDiveAimActive(clientPlayerEntity, this.target);
+        float fCurrentValue = maceDiveAim
+                ? getMaceAimDistance(clientPlayerEntity, this.target)
+                : this.maxDistance.currentValue() + this.extraDistance.currentValue();
         if (clientPlayerEntity.isCreative()) {
             fCurrentValue = (float) Math.max(fCurrentValue, clientPlayerEntity.getEntityInteractionRange());
         }
-        Vec3d attackDirection = RotationMath.INSTANCE.rotationToVector(rotationManager.getCurrentRotation());
-        boolean zRayTrace = isSpookyTimeMode(this.rotationMode.currentValue())
-                ? RaycastUtil.traceTargetLineOfSight(
-                        clientPlayerEntity.getEyePos(),
-                        attackDirection,
-                        fCurrentValue,
-                        clientPlayerEntity,
-                        this.target,
-                        this.ignoreWalls.isValue()
-                ).isPresent()
-                : RaycastUtil.rayTrace(this.hitPointResolver, this.target, clientPlayerEntity.getEyePos(), attackDirection, fCurrentValue, this.target.getBoundingBox(), this.ignoreWalls.isValue());
-        boolean canAttackSoon = canAttack(clientPlayerEntity, 1);
-        boolean maxDamageSoon = this.maxDamage.isValue()
-                && (shouldUseMaxDamage(clientPlayerEntity, 0)
-                || shouldUseMaxDamage(clientPlayerEntity, 1)
-                || shouldUseMaxDamage(clientPlayerEntity, 2));
-        if (canAttack(clientPlayerEntity, 2) && maxDamageSoon) {
-            prepareMaxDamageItem(clientPlayerEntity);
-        } else if (!maxDamageSoon) {
-            restoreMaxDamageItem(clientPlayerEntity);
-        }
-        if (canAttackSoon) {
-            if (shouldResetSprintForAttack(clientPlayerEntity, 1)) {
-                this.sprintTicks = 1;
-                clientPlayerEntity.setSprinting(false);
+        RotationMode selectedRotationMode = getRotationMode();
+        Vec3d aimPoint;
+        if (spookyTime) {
+            Optional<HitPointResolver.StableAimPoint> resolvedAimPoint = this.hitPointResolver.resolveStablePoint(
+                    this.target,
+                    clientPlayerEntity,
+                    fCurrentValue,
+                    rotationManager.getCurrentRotation(),
+                    this.ignoreWalls.isValue(),
+                    this.spookyAimPoint,
+                    SPOOKY_AIM_POINT_SWITCH_MARGIN
+            );
+            if (resolvedAimPoint.isEmpty()) {
+                this.spookyAimPoint = null;
+                this.lastTarget = this.target;
+                return;
             }
-            if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.actionScheduler.isFinished()) {
-                clientPlayerInteractionManager.stopUsingItem(clientPlayerEntity);
-                this.mc.getGameOptions().useKey.setPressed(false);
-                this.actionScheduler.cleanup().addTickStep(1, () -> {
-                    this.mc.getGameOptions().useKey.setPressed(true);
-                });
-            }
-        }
-        boolean requiresSprintReset =
-                shouldResetSprintForAttack(clientPlayerEntity, 0);
-        if (zRayTrace
-                && canAttack(clientPlayerEntity, 0)
-                && (!requiresSprintReset || !SlotSyncHandler.lastSprinting)
-                && !CombatPauseManager.INSTANCE.shouldPauseCombat()) {
-            if (this.autoMace.isValue() && isMaceSmashReady(clientPlayerEntity, 0)) {
-                performMaceAttack(clientPlayerEntity, clientPlayerInteractionManager, rotationManager);
+            this.spookyAimPoint = resolvedAimPoint.get();
+            aimPoint = this.spookyAimPoint.point();
+        } else {
+            if (selectedMode == AuraRotationMode.FUNTIME) {
+                aimPoint = getFunTimeAimPoint(this.target, fCurrentValue, clientPlayerEntity);
             } else {
-                if (attackTarget(clientPlayerEntity, clientPlayerInteractionManager, this.target)) {
-                    breakShieldWithAxe(clientPlayerEntity, clientPlayerInteractionManager);
-                }
+                aimPoint = (Vec3d) this.hitPointResolver.computeVector(
+                        this.target,
+                        fCurrentValue,
+                        rotationManager.getCurrentRotation(),
+                        selectedRotationMode.randomValue(),
+                        false
+                ).getLeft();
             }
         }
-    }
-
-    public void breakShieldWithAxe(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager) {
-        if (this.breakShield.isValue()) {
-            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEntityPos().subtract(this.target.getEntityPos()).normalize()), -1.0d, 1.0d))) <= 110.0d) {
-                Optional<SlotSearchResult2> optionalFindItem = AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> {
-                    return itemStack.getItem() instanceof AxeItem;
-                }, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
-                if (optionalFindItem.isEmpty() || !optionalFindItem.get().found()) {
-                    return;
-                }
-                SwapUtil.swapAndExecute(optionalFindItem.get().slotReference().increasedSlot(), RotationManager.INSTANCE.getCurrentRotation(), true, () -> {
-                    attackEntityVanillaSafe(
-                            clientPlayerEntity,
-                            clientPlayerInteractionManager,
-                            this.target);
-                    clientPlayerEntity.swingHand(Hand.MAIN_HAND);
-                });
+        Vec3d vec3dSubtract = aimPoint.subtract(clientPlayerEntity.getEyePos());
+        if (vec3dSubtract == null) {
+            return;
+        }
+        Rotation targetRotation = RotationMath.INSTANCE.fromVec3d(vec3dSubtract);
+        if (maceDiveAim) {
+            Optional<Float> predictedPitch = predictMaceImpactPitch(
+                    clientPlayerEntity,
+                    this.target);
+            if (predictedPitch.isPresent()) {
+                targetRotation = new Rotation(
+                        targetRotation.getYaw(),
+                        predictedPitch.get());
             }
         }
-    }
-
-    @Override
-    public void deactivate() {
-        ClientPlayerEntity player = this.mc.getPlayer();
-        finishAuraRotationWithoutReturn(player, RotationManager.INSTANCE);
-        RotationManager.INSTANCE.cancelTasksFor(this);
-        this.auraRotationActive = false;
-        clearMacePreparation(player, true);
-        restoreMaxDamageItem(player);
-        this.maceAttackedThisFall = false;
-        this.target = null;
-        this.spookyAimPoint = null;
+        if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
+            i = 2;
+        } else {
+            i = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 20 : 5;
+        }
+        int i3 = i;
+        if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
+            i2 = 4;
+        } else {
+            i2 = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 5 : 0;
+        }
+        int i4 = i2;
+        if (!maceDiveAim
+                && !this.rotationMode.isSelected(AuraRotationMode.GRIM)
+                && i4 > 0
+                && !canAttack(clientPlayerEntity, i4)) {
+            this.lastTarget = this.target;
+        } else {
+            rotationManager.scheduleRotation(new RotationVector(targetRotation, vec3dSubtract), this.target, new RotationConfig(selectedRotationMode, false, !this.moveCorrectionMode.isSelected(MoveCorrectionMode.NONE), this.moveCorrectionMode.isSelected(MoveCorrectionMode.FOCUS)), 1, this, i3);
+            this.auraRotationActive = true;
+            this.lastTarget = this.target;
+        }
+    } else {
         this.spookyTimeRotationMode.reset();
-        resetSpookyDistanceControl();
-        this.visualSprintPlayer = null;
-        this.visualSprintUntilAge = Integer.MIN_VALUE;
-        super.deactivate();
+        this.spookyAimPoint = null;
+        requestMaceRestore(clientPlayerEntity, 0);
+        restoreMaxDamageItem(clientPlayerEntity);
     }
+}
 
-    public boolean isActiveItemStackBlocking(LivingEntity livingEntity, int i) {
-        if (!livingEntity.isUsingItem() || livingEntity.activeItemStack.isEmpty()) {
-            return false;
+private Vec3d getFunTimeAimPoint(LivingEntity target, float range, ClientPlayerEntity player) {
+    if (target != lastPointTarget) {
+        lastPointTarget = target;
+        pointHitCount = -1;
+    }
+    Box box = target.getBoundingBox();
+    List<Vec3d> points = new ArrayList<>();
+    for (double x = 0.1; x < 0.9; x += 0.4) {
+        for (double y = 0.2; y < 0.9; y += 0.3) {
+            for (double z = 0.1; z < 0.9; z += 0.4) {
+                points.add(new Vec3d(
+                    MathHelper.lerp(x, box.minX, box.maxX),
+                    MathHelper.lerp(y, box.minY, box.maxY),
+                    MathHelper.lerp(z, box.minZ, box.maxZ)
+                ));
+            }
         }
-        Item item = livingEntity.activeItemStack.getItem();
-        return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity) - livingEntity.getItemUseTimeLeft() >= i;
     }
+    pointHitCount = hitCounter;
+    return points.get((int) (Math.random() * points.size()));
+}
 
-    public Rotation  
+public static Aura getInstance() {
+    return instance;
+}
+    public void performAttack(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager, RotationManager rotationManager) {
+    if (this.attackCooldown > 0) {
+        this.attackCooldown--;
+    }
+    if (this.sprintTicks > 0) {
+        this.sprintTicks--;
+    }
+    if (!isState() || this.target == null) {
+        restoreMaxDamageItem(clientPlayerEntity);
+        return;
+    }
+    if (this.autoMace.isValue()
+            && (this.maceSwapScheduled
+                    || this.maceRestoreScheduled)) {
+        return;
+    }
+    float fCurrentValue = this.maxDistance.currentValue();
+    if (clientPlayerEntity.isCreative()) {
+        fCurrentValue = (float) Math.max(fCurrentValue, clientPlayerEntity.getEntityInteractionRange());
+    }
+    Vec3d attackDirection = RotationMath.INSTANCE.rotationToVector(rotationManager.getCurrentRotation());
+    boolean zRayTrace = isSpookyTimeMode(this.rotationMode.currentValue())
+            ? RaycastUtil.traceTargetLineOfSight(
+                    clientPlayerEntity.getEyePos(),
+                    attackDirection,
+                    fCurrentValue,
+                    clientPlayerEntity,
+                    this.target,
+                    this.ignoreWalls.isValue()
+            ).isPresent()
+            : RaycastUtil.rayTrace(this.hitPointResolver, this.target, clientPlayerEntity.getEyePos(), attackDirection, fCurrentValue, this.target.getBoundingBox(), this.ignoreWalls.isValue());
+    boolean canAttackSoon = canAttack(clientPlayerEntity, 1);
+    boolean maxDamageSoon = this.maxDamage.isValue()
+            && (shouldUseMaxDamage(clientPlayerEntity, 0)
+            || shouldUseMaxDamage(clientPlayerEntity, 1)
+            || shouldUseMaxDamage(clientPlayerEntity, 2));
+    if (canAttack(clientPlayerEntity, 2) && maxDamageSoon) {
+        prepareMaxDamageItem(clientPlayerEntity);
+    } else if (!maxDamageSoon) {
+        restoreMaxDamageItem(clientPlayerEntity);
+    }
+    if (canAttackSoon) {
+        if (shouldResetSprintForAttack(clientPlayerEntity, 1)) {
+            this.sprintTicks = 1;
+            clientPlayerEntity.setSprinting(false);
+        }
+        if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.actionScheduler.isFinished()) {
+            clientPlayerInteractionManager.stopUsingItem(clientPlayerEntity);
+            this.mc.getGameOptions().useKey.setPressed(false);
+            this.actionScheduler.cleanup().addTickStep(1, () -> {
+                this.mc.getGameOptions().useKey.setPressed(true);
+            });
+        }
+    }
+    boolean requiresSprintReset =
+            shouldResetSprintForAttack(clientPlayerEntity, 0);
+    if (zRayTrace
+            && canAttack(clientPlayerEntity, 0)
+            && (!requiresSprintReset || !SlotSyncHandler.lastSprinting)
+            && !CombatPauseManager.INSTANCE.shouldPauseCombat()) {
+        if (this.autoMace.isValue() && isMaceSmashReady(clientPlayerEntity, 0)) {
+            performMaceAttack(clientPlayerEntity, clientPlayerInteractionManager, rotationManager);
+        } else {
+            if (attackTarget(clientPlayerEntity, clientPlayerInteractionManager, this.target)) {
+                breakShieldWithAxe(clientPlayerEntity, clientPlayerInteractionManager);
+            }
+        }
+    }
+}
+
+public void breakShieldWithAxe(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager) {
+    if (this.breakShield.isValue()) {
+        if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEntityPos().subtract(this.target.getEntityPos()).normalize()), -1.0d, 1.0d))) <= 110.0d) {
+            Optional<SlotSearchResult2> optionalFindItem = AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> {
+                return itemStack.getItem() instanceof AxeItem;
+            }, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
+            if (optionalFindItem.isEmpty() || !optionalFindItem.get().found()) {
+                return;
+            }
+            SwapUtil.swapAndExecute(optionalFindItem.get().slotReference().increasedSlot(), RotationManager.INSTANCE.getCurrentRotation(), true, () -> {
+                attackEntityVanillaSafe(
+                        clientPlayerEntity,
+                        clientPlayerInteractionManager,
+                        this.target);
+                clientPlayerEntity.swingHand(Hand.MAIN_HAND);
+            });
+        }
+    }
+}
+
+@Override
+public void deactivate() {
+    ClientPlayerEntity player = this.mc.getPlayer();
+    finishAuraRotationWithoutReturn(player, RotationManager.INSTANCE);
+    RotationManager.INSTANCE.cancelTasksFor(this);
+    this.auraRotationActive = false;
+    clearMacePreparation(player, true);
+    restoreMaxDamageItem(player);
+    this.maceAttackedThisFall = false;
+    this.target = null;
+    this.spookyAimPoint = null;
+    this.spookyTimeRotationMode.reset();
+    resetSpookyDistanceControl();
+    this.visualSprintPlayer = null;
+    this.visualSprintUntilAge = Integer.MIN_VALUE;
+    super.deactivate();
+}
+
+public boolean isActiveItemStackBlocking(LivingEntity livingEntity, int i) {
+    if (!livingEntity.isUsingItem() || livingEntity.activeItemStack.isEmpty()) {
+        return false;
+    }
+    Item item = livingEntity.activeItemStack.getItem();
+    return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity
