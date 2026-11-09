@@ -22,13 +22,6 @@ import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
 
-// Импорты для ротации
-import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
-import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
-import ru.zov.implement.features.modules.combat.killaura.config.RotationConfig;
-import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
-import ru.zov.implement.features.modules.combat.killaura.type.SpeedRotationMode;
-
 public class AimAssist extends Module {
 
     private final List<LivingEntity> candidates = new ArrayList<>();
@@ -103,29 +96,18 @@ public class AimAssist extends Module {
             return;
         }
 
-        // Плавная наводка через RotationManager
-        Rotation goalRotation = new Rotation(targetYaw, targetPitch);
-        RotationVector rotationVector = new RotationVector(goalRotation, diff);
-
+        // Прямая интерполяция (без RotationManager, чтобы не крашило)
         float speedFactor = speed.getValue();
-        RotationConfig config = new RotationConfig(
-                new SpeedRotationMode(180.0f / speedFactor, 180.0f / speedFactor),
-                false, // client rotation
-                true, // move correction
-                false // focused correction
-        );
+        float dYaw = MathHelper.wrapDegrees(targetYaw - mc.player.getYaw());
+        float dPitch = targetPitch - mc.player.getPitch();
 
-        // The rotation manager overloads are typed for the killaura Module provider,
-        // but this class is the main API Module. Use the int-before-Module overload
-        // so the call matches the actual method signature without changing inheritance.
-        RotationManager.INSTANCE.scheduleRotation(
-                rotationVector,
-                target,
-                config,
-                1,
-                (int) speedFactor,
-                null
-        );
+        // Чем меньше speedFactor, тем больше шаг (быстрее)
+        float stepYaw = dYaw / speedFactor;
+        float stepPitch = dPitch / speedFactor;
+
+        // Плавно применяем
+        mc.player.setYaw(mc.player.getYaw() + stepYaw);
+        mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + stepPitch, -90.0f, 90.0f));
     }
 
     private LivingEntity findTarget() {
