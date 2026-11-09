@@ -8,6 +8,8 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.SwordItem;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -21,18 +23,14 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
-import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
 
 public class AimAssist extends Module {
 
     private final List<LivingEntity> candidates = new ArrayList<>();
     private LivingEntity cachedTarget;
     private long lastTargetSwitch;
-    private float currentYaw;
-    private float currentPitch;
 
-    // Настройки (адаптированы под ValueSetting)
+    // Настройки (адаптированы под Zov)
     public final SelectSetting rotationMode = new SelectSetting("Ротация", "Тип наводки")
             .value("Linear", "Smooth", "Instant").selected("Linear");
     public final ValueSetting speed = new ValueSetting("Скорость", "Скорость наводки")
@@ -60,8 +58,6 @@ public class AimAssist extends Module {
     @Override
     public void activate() {
         cachedTarget = null;
-        currentYaw = mc.player != null ? mc.player.getYaw() : 0;
-        currentPitch = mc.player != null ? mc.player.getPitch() : 0;
     }
 
     @EventHandler
@@ -71,8 +67,7 @@ public class AimAssist extends Module {
         // Если в руке нет оружия, не работаем (опция)
         if (onlyWeapon.isValue()) {
             var stack = mc.player.getMainHandStack();
-            if (!(stack.getItem() instanceof net.minecraft.item.SwordItem)
-                && !(stack.getItem() instanceof net.minecraft.item.AxeItem)) {
+            if (!(stack.getItem() instanceof SwordItem) && !(stack.getItem() instanceof AxeItem)) {
                 return;
             }
         }
@@ -92,38 +87,19 @@ public class AimAssist extends Module {
         float targetPitch = (float) -Math.toDegrees(Math.atan2(diff.y, Math.hypot(diff.x, diff.z)));
         targetPitch = MathHelper.clamp(targetPitch, -90.0f, 90.0f);
 
-        // 3. Плавная наводка через RotationManager
+        // 3. Плавная наводка (напрямую в камеру)
         if (cachedTarget == null || System.currentTimeMillis() - lastTargetSwitch > 300) {
             cachedTarget = target;
             lastTargetSwitch = System.currentTimeMillis();
-            currentYaw = mc.player.getYaw();
-            currentPitch = mc.player.getPitch();
         }
 
         float speedFactor = speed.getValue();
-        float dYaw = MathHelper.wrapDegrees(targetYaw - currentYaw);
-        float dPitch = targetPitch - currentPitch;
+        float dYaw = MathHelper.wrapDegrees(targetYaw - mc.player.getYaw());
+        float dPitch = targetPitch - mc.player.getPitch();
 
-        currentYaw += dYaw / speedFactor;
-        currentPitch += dPitch / speedFactor;
-        currentPitch = MathHelper.clamp(currentPitch, -90.0f, 90.0f);
-
-        // Отправляем ротацию через твой RotationManager
-        Rotation targetRotation = new Rotation(currentYaw, currentPitch);
-        RotationManager.INSTANCE.scheduleRotation(
-                targetRotation,
-                null,
-                new ru.zov.implement.features.modules.combat.killaura.config.RotationConfig(
-                        ru.zov.implement.features.modules.combat.killaura.type.RotationMode
-                                .valueOf(rotationMode.getValue()) == null ? null : null, // Заглушка
-                        false, false, false
-                ),
-                1, this, 1
-        );
-
-        // Проще: напрямую устанавливаем камеру (если RotationManager сложен)
-        // mc.player.setYaw(currentYaw);
-        // mc.player.setPitch(currentPitch);
+        // Плавно поворачиваем камеру
+        mc.player.setYaw(mc.player.getYaw() + dYaw / speedFactor);
+        mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + dPitch / speedFactor, -90.0f, 90.0f));
     }
 
     private LivingEntity findTarget() {
