@@ -57,7 +57,7 @@ public class SpearAura extends Module {
             }
 
             // 2. Наводимся на цель (центр хитбокса)
-            Vec3d aim = target.getPos().add(0, target.getHeight() * 0.5, 0);
+            Vec3d aim = target.getEntityPos().add(0, target.getHeight() * 0.5, 0);
             double dx = aim.x - mc.player.getX();
             double dy = aim.y - mc.player.getEyeY();
             double dz = aim.z - mc.player.getZ();
@@ -89,7 +89,8 @@ public class SpearAura extends Module {
             double dist = mc.player.distanceTo(p);
             if (dist > 128 || dist >= bestDist) continue;
 
-            Vec3d delta = p.getPos().subtract(mc.player.getPos()).normalize();
+            // ИСПРАВЛЕНО: getPos() -> getEntityPos()
+            Vec3d delta = p.getEntityPos().subtract(mc.player.getEntityPos()).normalize();
             double angle = Math.toDegrees(Math.acos(MathHelper.clamp(look.dotProduct(delta), -1.0, 1.0)));
             
             if (angle <= aimRadius.getValue()) {
