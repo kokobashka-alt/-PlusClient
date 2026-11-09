@@ -6,6 +6,7 @@ import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.CooldownUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerRespawnS2CPacket;
@@ -33,13 +34,16 @@ public class PouchCooldowns extends AbstractDraggable {
     public final List<PouchCoolDown> list = new ArrayList<>();
 
     public PouchCooldowns() {
-        // Координаты x=10, y=120 (под Potions)
         super("PouchCooldowns", 10, 120, 120, 23, true);
     }
 
     @Override
     public boolean visible() {
-        return !list.isEmpty() || PlayerIntersectionUtil.isChat(mc.currentScreen);
+        // Если открыт чат, показываем панель всегда
+        if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            return true;
+        }
+        return !list.isEmpty();
     }
 
     @Override
@@ -87,50 +91,50 @@ public class PouchCooldowns extends AbstractDraggable {
         FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
         FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        // Заголовок с блюром
         blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
                 .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
                 .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
 
-        // Основной фон
         blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
                 .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
                 .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
-        // Заголовок по центру
         float centerX = this.getX() + this.getWidth() / 2.0F;
         String header = "Cooldowns";
         font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
 
-        // Полоска акцента
         rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
                 .color(ColorUtil.getClientColor()).build());
 
         int offset = 23;
         int maxWidth = 120;
 
-        for (PouchCoolDown coolDown : list) {
-            float animation = coolDown.anim().getOutput().floatValue();
-            int time = -coolDown.time().elapsedInt() / 100;
-            
-            if (animation <= 0.05f) continue;
+        // Если открыт чат и кулдаунов нет, показываем фейковый для перетаскивания
+        if (list.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            context.drawItem(new net.minecraft.item.ItemStack(Items.ENDER_PEARL), (int) this.getX() + 5, (int) this.getY() + offset - 3);
+            fontItem.drawString(matrix, "Ender Pearl", this.getX() + 23, this.getY() + offset, ColorUtil.getText(0.5F));
+            fontItem.drawString(matrix, "1.5s", this.getX() + this.getWidth() - (int) fontItem.getStringWidth("1.5s") - 5, this.getY() + offset, ColorUtil.getClientColor());
+            offset += 12;
+        } else {
+            for (PouchCoolDown coolDown : list) {
+                float animation = coolDown.anim().getOutput().floatValue();
+                int time = -coolDown.time().elapsedInt() / 100;
 
-            String name = coolDown.item().getDefaultStack().getName().getString();
-            String duration = StringUtil.getDurationMS(time, true);
+                if (animation <= 0.05f) continue;
 
-            // Иконка предмета
-            context.drawItem(coolDown.item().getDefaultStack(), (int) this.getX() + 5, (int) this.getY() + offset - 3);
+                String name = coolDown.item().getDefaultStack().getName().getString();
+                String duration = StringUtil.getDurationMS(time, true);
 
-            // Название (слева)
-            fontItem.drawString(matrix, name, this.getX() + 23, this.getY() + offset, ColorUtil.getText());
+                context.drawItem(coolDown.item().getDefaultStack(), (int) this.getX() + 5, (int) this.getY() + offset - 3);
+                fontItem.drawString(matrix, name, this.getX() + 23, this.getY() + offset, ColorUtil.getText());
 
-            // Время (справа)
-            int durationWidth = (int) fontItem.getStringWidth(duration);
-            fontItem.drawString(matrix, duration, this.getX() + this.getWidth() - durationWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
+                int durationWidth = (int) fontItem.getStringWidth(duration);
+                fontItem.drawString(matrix, duration, this.getX() + this.getWidth() - durationWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
 
-            int width = (int) fontItem.getStringWidth(name) + durationWidth + 35;
-            maxWidth = Math.max(maxWidth, width);
-            offset += Math.max(1, (int) (12.0F * animation));
+                int width = (int) fontItem.getStringWidth(name) + durationWidth + 35;
+                maxWidth = Math.max(maxWidth, width);
+                offset += Math.max(1, (int) (12.0F * animation));
+            }
         }
 
         this.setWidth(maxWidth);
