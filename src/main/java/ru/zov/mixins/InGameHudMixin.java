@@ -22,6 +22,7 @@ import ru.zov.common.util.render.Render2DUtil;
 import ru.zov.implement.events.render.DrawEvent;
 import ru.zov.implement.features.modules.render.CrossHair;
 import ru.zov.implement.features.modules.render.Hud;
+import ru.zov.implement.features.modules.render.PouchHud;
 
 @Mixin({InGameHud.class})
 public abstract class InGameHudMixin implements QuickImports {
