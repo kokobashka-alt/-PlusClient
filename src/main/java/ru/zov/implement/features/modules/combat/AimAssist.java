@@ -51,7 +51,7 @@ public class AimAssist extends Module {
             .setValue(false);
 
     public AimAssist() {
-        super("AimAssist", "CombatAim(systemdlc)", ModuleCategory.COMBAT);
+        super("AimAssist", "CombatAim", ModuleCategory.COMBAT);
         this.setup(new Setting[]{rotationMode, speed, distance, fov, priority, sticky, onlyWeapon});
     }
 
