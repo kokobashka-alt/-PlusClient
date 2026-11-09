@@ -22,6 +22,13 @@ import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
 
+// Импорты для ротации
+import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
+import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
+import ru.zov.implement.features.modules.combat.killaura.config.RotationConfig;
+import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
+import ru.zov.implement.features.modules.combat.killaura.type.LinearSmoothMode;
+
 public class AimAssist extends Module {
 
     private final List<LivingEntity> candidates = new ArrayList<>();
@@ -30,7 +37,7 @@ public class AimAssist extends Module {
 
     public final SelectSetting rotationMode = new SelectSetting("Ротация", "Тип наводки")
             .value("Linear", "Smooth", "Instant").selected("Linear");
-    public final ValueSetting speed = new ValueSetting("Скорость", "Скорость наводки")
+    public final ValueSetting speed = new ValueSetting("Скорость", "Скорость наводки (чем меньше, тем плавнее)")
             .setValue(3.0f).range(1.0f, 10.0f);
     public final ValueSetting distance = new ValueSetting("Дистанция", "Максимальная дистанция цели")
             .setValue(4.5f).range(1.0f, 8.0f);
@@ -61,13 +68,9 @@ public class AimAssist extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
 
-        // Проверка на оружие (без SwordItem/AxeItem, используя урон)
         if (onlyWeapon.isValue()) {
             ItemStack stack = mc.player.getMainHandStack();
-            // Проверяем, что у предмета есть урон атаки > 1 (мечи, топоры)
             if (stack.isEmpty()) return;
-
-            // В 1.21.11 проверка урона может быть сложной, поэтому используем простую проверку по имени
             String name = stack.getItem().getName().getString().toLowerCase();
             if (!name.contains("sword") && !name.contains("axe") && !name.contains("меч") && !name.contains("топор") && !name.contains("mace")) {
                 return;
@@ -80,6 +83,7 @@ public class AimAssist extends Module {
             return;
         }
 
+        // Точка наведения (центр хитбокса)
         Vec3d targetPoint = target.getEyePos().add(0, 0.1, 0);
         Vec3d diff = targetPoint.subtract(mc.player.getEyePos());
 
@@ -92,12 +96,35 @@ public class AimAssist extends Module {
             lastTargetSwitch = System.currentTimeMillis();
         }
 
-        float speedFactor = speed.getValue();
-        float dYaw = MathHelper.wrapDegrees(targetYaw - mc.player.getYaw());
-        float dPitch = targetPitch - mc.player.getPitch();
+        // Если выбран Instant (мгновенно)
+        if (rotationMode.isSelected("Instant")) {
+            mc.player.setYaw(targetYaw);
+            mc.player.setPitch(targetPitch);
+            return;
+        }
 
-        mc.player.setYaw(mc.player.getYaw() + dYaw / speedFactor);
-        mc.player.setPitch(MathHelper.clamp(mc.player.getPitch() + dPitch / speedFactor, -90.0f, 90.0f));
+        // Плавная наводка через RotationManager
+        Rotation goalRotation = new Rotation(targetYaw, targetPitch);
+        RotationVector rotationVector = new RotationVector(goalRotation, diff);
+        
+        // Используем LinearSmoothMode для плавности
+        RotationConfig config = new RotationConfig(
+                new LinearSmoothMode(),
+                false, // not free
+                true, // moveCorrection
+                false // focus
+        );
+
+        float speedFactor = speed.getValue();
+        // Отправляем задачу в менеджер ротаций (тики = скорость)
+        RotationManager.INSTANCE.scheduleRotation(
+                rotationVector,
+                target,
+                config,
+                1, // Приоритет
+                this,
+                (int) speedFactor // Чем больше, тем дольше ведет
+        );
     }
 
     private LivingEntity findTarget() {
