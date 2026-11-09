@@ -67,6 +67,7 @@ import ru.zov.implement.features.modules.render.SystemHud;
 import ru.zov.implement.features.modules.render.TargetESP;
 import ru.zov.implement.features.modules.render.JumpCircle;
 import ru.zov.implement.features.modules.combat.SpearAura;
+import ru.zov.implement.features.modules.combat.CrystalAura;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -137,7 +138,8 @@ public class ModuleRepository {
    new SystemHud(),
    new TargetESP(),
    new SpearAura(),
-  new JumpCircle()
+  new JumpCircle(),
+   new CrystalAura
 );
    }
 
