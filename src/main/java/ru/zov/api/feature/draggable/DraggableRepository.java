@@ -18,6 +18,7 @@ import ru.zov.implement.features.draggables.ScoreBoard;
 import ru.zov.implement.features.draggables.StaffList;
 import ru.zov.implement.features.draggables.TargetHud;
 import ru.zov.implement.features.draggables.Watermark;
+import ru.zov.implement.features.draggables.SystemUseTracker;
 
 public class DraggableRepository {
    private final List<AbstractDraggable> draggable = new ArrayList<>();
@@ -39,8 +40,9 @@ public class DraggableRepository {
          new MediaPlayer(),
          new HotBar(),
          new MiniMap(),
-         new PlayerInfo()
-      );
+         new PlayerInfo(),
+         new SystemUseTracker()
+);
    }
 
    @Native
