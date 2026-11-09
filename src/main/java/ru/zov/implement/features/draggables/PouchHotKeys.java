@@ -1,4 +1,3 @@
-
 package ru.zov.implement.features.draggables;
 
 import java.util.List;
@@ -6,6 +5,10 @@ import java.util.List;
 import net.minecraft.client.gui.DrawContext;
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.feature.module.Module;
+import ru.zov.api.system.font.FontRenderer;
+import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
+import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.other.StringUtil;
 
 public class PouchHotKeys extends AbstractDraggable {
@@ -13,7 +16,7 @@ public class PouchHotKeys extends AbstractDraggable {
     private List<Module> keysList = List.of();
 
     public PouchHotKeys() {
-        super("PouchHotKeys", 300, 10, 100, 25, true);
+        super("PouchHotKeys", 140, 60, 120, 23, true); // Сдвинул координаты, чтобы не перекрывалось
     }
 
     @Override
@@ -33,73 +36,49 @@ public class PouchHotKeys extends AbstractDraggable {
 
     @Override
     public void drawDraggable(DrawContext context) {
-        int x = (int) getX();
-        int y = (int) getY();
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
+        FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        int width = 100;
-        int height = 22 + keysList.size() * 13;
+        // Заголовок с блюром
+        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
+                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
 
-        // Background
-        context.fill(
-                x, y,
-                x + width, y + height,
-                0xAA101010
-        );
+        // Основной фон
+        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
+                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
-        // Accent
-        context.fill(
-                x, y,
-                x + 2, y + height,
-                0xFF8B5CF6
-        );
+        // Заголовок по центру
+        float centerX = this.getX() + this.getWidth() / 2.0F;
+        String header = "Hotkeys";
+        font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
 
-        // Header
-        context.drawText(
-                mc.textRenderer,
-                "Hot Keys",
-                x + 7,
-                y + 6,
-                0xFF8B5CF6,
-                false
-        );
+        // Полоска акцента
+        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
+                .color(ColorUtil.getClientColor()).build());
 
-        int offset = 22;
-        int maxWidth = width;
+        int offset = 23;
+        int maxWidth = 120;
 
         for (Module module : keysList) {
             String name = module.getName();
             String bind = "[" + StringUtil.getBindName(module.getKey()) + "]";
 
-            context.drawText(
-                    mc.textRenderer,
-                    name,
-                    x + 7,
-                    y + offset,
-                    0xFFFFFFFF,
-                    false
-            );
+            // Название модуля (слева)
+            fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
 
-            int bindWidth = mc.textRenderer.getWidth(bind);
+            // Бинд (справа)
+            int bindWidth = fontItem.getStringWidth(bind);
+            fontItem.drawString(matrix, bind, this.getX() + this.getWidth() - bindWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
 
-            context.drawText(
-                    mc.textRenderer,
-                    bind,
-                    x + width - bindWidth - 7,
-                    y + offset,
-                    0xFF8B5CF6,
-                    false
-            );
-
-            maxWidth = Math.max(
-                    maxWidth,
-                    mc.textRenderer.getWidth(name)
-                            + bindWidth + 20
-            );
-
+            int width = (int) fontItem.getStringWidth(name) + bindWidth + 20;
+            maxWidth = Math.max(maxWidth, width);
             offset += 13;
         }
 
-        setWidth(maxWidth);
-        setHeight(height);
+        this.setWidth(maxWidth);
+        this.setHeight(offset + 5);
     }
 }
