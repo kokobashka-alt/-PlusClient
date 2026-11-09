@@ -912,3 +912,737 @@ public boolean canCrit(ClientPlayerEntity clientPlayerEntity, int i) {
     }
     return shouldCrit(clientPlayerEntity, i);
 }
+    private boolean shouldResetSprintForAttack(
+            ClientPlayerEntity clientPlayerEntity,
+            int predictionTicks) {
+        if (!this.keepSprintWhenPossible.isValue()) {
+            return true;
+        }
+        if (this.autoMace.isValue()
+                && isMaceSmashReady(clientPlayerEntity, predictionTicks)) {
+            return false;
+        }
+
+        SimulatedPlayer simulatedPlayer =
+                SimulatedPlayer.simulateLocalPlayer(predictionTicks);
+        if (simulatedPlayer.onGround
+                || simulatedPlayer.fallDistance <= 0.0f
+                || simulatedPlayer.isFallFlying
+                || simulatedPlayer.touchingWater
+                || simulatedPlayer.isSubmergedInWater()
+                || simulatedPlayer.isInLava()
+                || simulatedPlayer.isClimbing()
+                || clientPlayerEntity.hasVehicle()
+                || clientPlayerEntity.getAbilities().flying
+                || simulatedPlayer.hasStatusEffect(StatusEffects.LEVITATION)
+                || simulatedPlayer.hasStatusEffect(StatusEffects.BLINDNESS)
+                || simulatedPlayer.hasStatusEffect(StatusEffects.SLOW_FALLING)
+                || BlockUtil.checkBlockIntersection(
+                        simulatedPlayer.boundingBox,
+                        block -> block instanceof CobwebBlock)) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean shouldCrit(ClientPlayerEntity clientPlayerEntity, int i) {
+        if (isMaceSmashReady(clientPlayerEntity, i)) {
+            return true;
+        }
+        SimulatedPlayer class136VarSimulateLocalPlayer = SimulatedPlayer.simulateLocalPlayer(i);
+        if (class136VarSimulateLocalPlayer.hasStatusEffect(StatusEffects.LEVITATION) || class136VarSimulateLocalPlayer.hasStatusEffect(StatusEffects.BLINDNESS) || class136VarSimulateLocalPlayer.hasStatusEffect(StatusEffects.SLOW_FALLING)) {
+            return true;
+        }
+        if (BlockUtil.checkBlockIntersection(class136VarSimulateLocalPlayer.boundingBox, block -> {
+            return block instanceof CobwebBlock;
+        }) || class136VarSimulateLocalPlayer.isSubmergedInWater() || class136VarSimulateLocalPlayer.isInLava() || class136VarSimulateLocalPlayer.isClimbing() || this.mc.getPlayer().getAbilities().flying) {
+            return true;
+        }
+        if (clientPlayerEntity.getMainHandStack().getItem() instanceof MaceItem) {
+            return MaceItem.shouldDealAdditionalDamage(clientPlayerEntity);
+        }
+        boolean z = SimulatedPlayer.simulateLocalPlayer(i + 1).onGround;
+        boolean z2 = SimulatedPlayer.simulateLocalPlayer(i + 2).onGround;
+        boolean z3 = class136VarSimulateLocalPlayer.fallDistance > 1.0f && z;
+        return (class136VarSimulateLocalPlayer.onGround || class136VarSimulateLocalPlayer.fallDistance <= 0.0f || ((class136VarSimulateLocalPlayer.velocity.y > (-0.3d) ? 1 : (class136VarSimulateLocalPlayer.velocity.y == (-0.3d) ? 0 : -1)) < 0 && z2 && (verticalCollisionSnapshot(4) || verticalCollisionSnapshot(5) || verticalCollisionSnapshot(6) || verticalCollisionSnapshot(7))) || ((class136VarSimulateLocalPlayer.fallDistance > ((float) class136VarSimulateLocalPlayer.velocity.y) ? 1 : (class136VarSimulateLocalPlayer.fallDistance == ((float) class136VarSimulateLocalPlayer.velocity.y) ? 0 : -1)) == 0 && z) || z3) ? false : true;
+    }
+
+    private void updateMaceFallState(ClientPlayerEntity clientPlayerEntity) {
+        if (clientPlayerEntity == null) {
+            return;
+        }
+        if (clientPlayerEntity.isOnGround()) {
+            this.maceAttackedThisFall = false;
+        }
+        if (clientPlayerEntity.isGliding()) {
+            requestMaceRestore(clientPlayerEntity, 0);
+            return;
+        }
+        if (this.preparedMace != null) {
+            this.macePreparedTicks++;
+            if (this.maceAttackedThisFall
+                    || this.macePreparedTicks > MACE_HOLD_TIMEOUT_TICKS
+                    || !clientPlayerEntity.getMainHandStack().isOf(Items.MACE)) {
+                requestMaceRestore(clientPlayerEntity, MACE_RESTORE_DELAY_TICKS);
+            }
+        }
+    }
+
+    private void prepareMaceForDive(ClientPlayerEntity clientPlayerEntity) {
+        if (!this.autoMace.isValue()) {
+            requestMaceRestore(clientPlayerEntity, 0);
+            return;
+        }
+        if (this.preparedMace != null
+                || this.maceSwapScheduled
+                || this.maceRestoreScheduled
+                || this.maceAttackedThisFall
+                || this.target == null
+                || System.currentTimeMillis() < this.maceSwapCooldownUntil) {
+            return;
+        }
+        if (clientPlayerEntity.getY() - this.target.getY()
+                < this.autoMaceHeight.currentValue()) {
+            return;
+        }
+        if (clientPlayerEntity.getMainHandStack().isOf(Items.MACE)) {
+            return;
+        }
+        Optional<SlotSearchResult2> optionalMace = findMace(clientPlayerEntity);
+        if (optionalMace.isEmpty() || !GrimDelayHandler.script.isFinished()) {
+            return;
+        }
+        SlotSearchResult2 mace = optionalMace.get();
+        ScopedSlot maceSlot = mace.slotReference();
+        int selectedSlot = clientPlayerEntity.getInventory().getSelectedSlot();
+        this.maceRestoreSelectedSlot = selectedSlot;
+        if (maceSlot.scope() == InventoryScope.HOTBAR) {
+            this.maceInventorySourceSlot = -1;
+            this.maceInventoryTargetSlot = -1;
+        } else {
+            this.maceInventorySourceSlot = maceSlot.increasedSlot();
+            this.maceInventoryTargetSlot = selectedSlot;
+        }
+        this.maceSwapScheduled = true;
+        GrimDelayHandler.addTask(RotationManager.INSTANCE.getCurrentRotation(), () -> {
+            if (!this.maceSwapScheduled) {
+                return;
+            }
+            this.maceSwapScheduled = false;
+            if (!isState()
+                    || !this.autoMace.isValue()
+                    || this.mc.getPlayer() != clientPlayerEntity
+                    || this.target == null
+                    || !this.target.isAlive()) {
+                resetMaceSwapState();
+                return;
+            }
+
+            if (maceSlot.scope() == InventoryScope.HOTBAR) {
+                int slot = maceSlot.slot();
+                this.maceInternalSlotChange = true;
+                try {
+                    clientPlayerEntity.getInventory().setSelectedSlot(slot);
+                    clientPlayerEntity.networkHandler.sendPacket(
+                            new UpdateSelectedSlotC2SPacket(slot));
+                } finally {
+                    this.maceInternalSlotChange = false;
+                }
+            } else {
+                PlayerActionUtil.INSTANCE.windowClick(
+                        SlotActionType.SWAP,
+                        this.maceInventorySourceSlot,
+                        this.maceInventoryTargetSlot,
+                        true);
+            }
+            this.preparedMace = new SlotSearchResult2(
+                    new ScopedSlot(selectedSlot, InventoryScope.HOTBAR),
+                    clientPlayerEntity.getInventory().getStack(selectedSlot));
+            this.macePreparedTicks = 0;
+        });
+    }
+
+    private Optional<SlotSearchResult2> findMace(ClientPlayerEntity clientPlayerEntity) {
+        int selectedSlot = clientPlayerEntity.getInventory().getSelectedSlot();
+        if (clientPlayerEntity.getInventory().getStack(selectedSlot).isOf(Items.MACE)) {
+            return Optional.of(new SlotSearchResult2(new ScopedSlot(selectedSlot, InventoryScope.HOTBAR), clientPlayerEntity.getInventory().getStack(selectedSlot)));
+        }
+        return AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> {
+            return itemStack.isOf(Items.MACE);
+        }, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
+    }
+
+    private boolean isMaceDivePrepared(ClientPlayerEntity clientPlayerEntity, int predictionTicks) {
+        return this.autoMace.isValue()
+                && clientPlayerEntity != null
+                && clientPlayerEntity.getMainHandStack().isOf(Items.MACE)
+                && !this.maceAttackedThisFall
+                && isMaceDivePhysics(clientPlayerEntity, predictionTicks, false);
+    }
+
+    private boolean isMaceSmashReady(ClientPlayerEntity clientPlayerEntity, int predictionTicks) {
+        return isMaceDivePrepared(clientPlayerEntity, predictionTicks)
+                && isMaceDivePhysics(clientPlayerEntity, predictionTicks, true);
+    }
+
+    private boolean isMaceDivePhysics(ClientPlayerEntity clientPlayerEntity, int predictionTicks, boolean requireSmashDistance) {
+        if (!this.autoMace.isValue() || clientPlayerEntity == null || this.target == null || clientPlayerEntity.isGliding()) {
+            return false;
+        }
+        if (!requireSmashDistance) {
+            return this.target.getBoundingBox().maxY < clientPlayerEntity.getEyeY()
+                    && (this.preparedMace != null
+                            || clientPlayerEntity.getMainHandStack().isOf(Items.MACE)
+                            || clientPlayerEntity.getY() - this.target.getY()
+                                    >= this.autoMaceHeight.currentValue());
+        }
+        if (predictionTicks <= 0) {
+            return !clientPlayerEntity.isOnGround()
+                    && clientPlayerEntity.getVelocity().y < 0.0D
+                    && MaceItem.shouldDealAdditionalDamage(clientPlayerEntity);
+        }
+        SimulatedPlayer simulatedPlayer = SimulatedPlayer.simulateLocalPlayer(predictionTicks);
+        return !simulatedPlayer.onGround
+                && simulatedPlayer.velocity.y < 0.0D
+                && simulatedPlayer.fallDistance > MIN_MACE_FALL_DISTANCE;
+    }
+
+    private void performMaceAttack(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager interactionManager, RotationManager rotationManager) {
+        if (!this.autoMace.isValue()
+                || this.maceAttackedThisFall
+                || !clientPlayerEntity.getMainHandStack().isOf(Items.MACE)) {
+            return;
+        }
+        LivingEntity attackTarget = this.target;
+        if (!attackTarget(clientPlayerEntity, interactionManager, attackTarget)) {
+            return;
+        }
+        this.maceAttackedThisFall = true;
+        if (this.preparedMace != null) {
+            requestMaceRestore(clientPlayerEntity, MACE_RESTORE_DELAY_TICKS);
+        }
+    }
+
+    private boolean attackTarget(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager interactionManager, LivingEntity attackTarget) {
+        if (!attackEntityWithMaxDamage(
+                clientPlayerEntity,
+                interactionManager,
+                attackTarget)) {
+            return false;
+        }
+        clientPlayerEntity.swingHand(Hand.MAIN_HAND);
+        this.hitCounter++;
+        this.attackTimer.reset();
+        
+        if (ru.zov.implement.features.modules.render.TargetESP.getInstance() != null 
+                && ru.zov.implement.features.modules.render.TargetESP.getInstance().isState()) {
+            ru.zov.implement.features.modules.render.TargetESP.getInstance().onHit(attackTarget);
+        }
+        
+        return true;
+    }
+
+    private boolean attackEntityWithMaxDamage(
+            ClientPlayerEntity player,
+            ClientPlayerInteractionManager interactionManager,
+            LivingEntity attackTarget) {
+        if (!shouldUseMaxDamage(player, 0)) {
+            attackEntityVanillaSafe(player, interactionManager, attackTarget);
+            return true;
+        }
+        if (isAutoTotemProtecting()) {
+            restoreMaxDamageItem(player);
+            attackEntityVanillaSafe(player, interactionManager, attackTarget);
+            return true;
+        }
+
+        MaxDamageItem selectedItem = this.maxDamageItem.currentValue();
+        if (matchesMaxDamageItem(player.getOffHandStack(), selectedItem)) {
+            if (this.maxDamageSwapSourceSlot != -1
+                    && !isMaxDamageItemReady(player, selectedItem)) {
+                return false;
+            }
+            attackEntityVanillaSafe(player, interactionManager, attackTarget);
+            if (this.maxDamageSwapSourceSlot != -1) {
+                scheduleMaxDamageRestore(player);
+            }
+            return true;
+        }
+
+        if (!hasMaxDamageItem(player, selectedItem)) {
+            attackEntityVanillaSafe(player, interactionManager, attackTarget);
+            return true;
+        }
+        if (!isMaxDamageItemReady(player, selectedItem)) {
+            prepareMaxDamageItem(player);
+            return false;
+        }
+        try {
+            attackEntityVanillaSafe(player, interactionManager, attackTarget);
+        } finally {
+            scheduleMaxDamageRestore(player);
+        }
+        return true;
+    }
+
+    private boolean shouldUseMaxDamage(
+            ClientPlayerEntity player,
+            int predictionTicks) {
+        if (!this.maxDamage.isValue() || player == null) {
+            return false;
+        }
+        if (this.autoMace.isValue()
+                && isMaceSmashReady(player, predictionTicks)) {
+            return true;
+        }
+        SimulatedPlayer simulatedPlayer =
+                SimulatedPlayer.simulateLocalPlayer(predictionTicks);
+        return simulatedPlayer.fallDistance > 0.0F
+                && !simulatedPlayer.onGround
+                && !simulatedPlayer.isFallFlying
+                && !simulatedPlayer.touchingWater
+                && !simulatedPlayer.isSubmergedInWater
+                && !simulatedPlayer.isInLava()
+                && !simulatedPlayer.isClimbing()
+                && !player.hasVehicle()
+                && !player.getAbilities().flying
+                && !simulatedPlayer.hasStatusEffect(StatusEffects.BLINDNESS)
+                && !simulatedPlayer.hasStatusEffect(StatusEffects.SLOW_FALLING)
+                && !simulatedPlayer.hasStatusEffect(StatusEffects.LEVITATION);
+    }
+
+    private boolean prepareMaxDamageItem(ClientPlayerEntity player) {
+        if (this.maxDamageRestoreAtAge != Integer.MIN_VALUE) {
+            return false;
+        }
+        if (player == null
+                || !this.maxDamage.isValue()
+                || isAutoTotemProtecting()) {
+            restoreMaxDamageItem(player);
+            return false;
+        }
+
+        MaxDamageItem selectedItem = this.maxDamageItem.currentValue();
+        if (this.preparedMaxDamageItem != null
+                && this.preparedMaxDamageItem != selectedItem) {
+            restoreMaxDamageItem(player);
+        }
+        if (matchesMaxDamageItem(player.getOffHandStack(), selectedItem)) {
+            if (this.preparedMaxDamageItem == null) {
+                this.preparedMaxDamageItem = selectedItem;
+                this.maxDamagePreparedAtAge = player.age - 1;
+            }
+            return true;
+        }
+        if (!SwapUtil.isIdle()) {
+            return false;
+        }
+        if (this.maxDamageSwapScheduled) {
+            return false;
+        }
+
+        Optional<SlotSearchResult2> damageItem =
+                AuraRuntime.INSTANCE.inventoryService().searcher().findItem(
+                        stack -> matchesMaxDamageItem(stack, selectedItem),
+                        InventoryScope.HOTBAR,
+                        InventoryScope.INVENTORY);
+        if (damageItem.isEmpty()) {
+            return false;
+        }
+
+        int sourceSlot = damageItem.get().slotReference().increasedSlot();
+        this.maxDamageSwapScheduled = true;
+        GrimDelayHandler.addTask(() -> {
+            this.maxDamageSwapScheduled = false;
+            if (!isState()
+                    || !this.maxDamage.isValue()
+                    || this.mc.getPlayer() != player
+                    || this.target == null
+                    || isAutoTotemProtecting()) {
+                return;
+            }
+            PlayerActionUtil.INSTANCE.windowClick(
+                    SlotActionType.SWAP,
+                    sourceSlot,
+                    40,
+                    false);
+            if (!matchesMaxDamageItem(player.getOffHandStack(), selectedItem)) {
+                return;
+            }
+            this.maxDamageSwapSourceSlot = sourceSlot;
+            this.maxDamagePreparedAtAge = player.age;
+            this.preparedMaxDamageItem = selectedItem;
+        });
+        return false;
+    }
+
+    private boolean isMaxDamageItemReady(
+            ClientPlayerEntity player,
+            MaxDamageItem selectedItem) {
+        return player != null
+                && this.preparedMaxDamageItem == selectedItem
+                && matchesMaxDamageItem(player.getOffHandStack(), selectedItem)
+                && (this.maxDamageSwapSourceSlot == -1
+                || player.age > this.maxDamagePreparedAtAge);
+    }
+
+    private boolean hasMaxDamageItem(
+            ClientPlayerEntity player,
+            MaxDamageItem selectedItem) {
+        return matchesMaxDamageItem(player.getOffHandStack(), selectedItem)
+                || AuraRuntime.INSTANCE.inventoryService().searcher().findItem(
+                        stack -> matchesMaxDamageItem(stack, selectedItem),
+                        InventoryScope.HOTBAR,
+                        InventoryScope.INVENTORY).isPresent();
+    }
+
+    private void restoreMaxDamageItem(ClientPlayerEntity player) {
+        if (this.maxDamageRestoreScheduled) {
+            return;
+        }
+        if (this.maxDamageSwapSourceSlot != -1 && player != null) {
+            if (!SwapUtil.isIdle()) {
+                this.maxDamageRestoreAtAge = player.age;
+                return;
+            }
+            int sourceSlot = this.maxDamageSwapSourceSlot;
+            this.maxDamageRestoreScheduled = true;
+            GrimDelayHandler.addTask(() -> {
+                try {
+                    if (this.mc.getPlayer() == player) {
+                        PlayerActionUtil.INSTANCE.windowClick(
+                                SlotActionType.SWAP,
+                                sourceSlot,
+                                40,
+                                false);
+                    }
+                } finally {
+                    clearMaxDamagePreparation();
+                }
+            });
+            return;
+        }
+        clearMaxDamagePreparation();
+    }
+
+    private void clearMaxDamagePreparation() {
+        this.maxDamageSwapSourceSlot = -1;
+        this.maxDamagePreparedAtAge = Integer.MIN_VALUE;
+        this.maxDamageRestoreAtAge = Integer.MIN_VALUE;
+        this.maxDamageRestoreScheduled = false;
+        this.preparedMaxDamageItem = null;
+    }
+
+    private void scheduleMaxDamageRestore(ClientPlayerEntity player) {
+        if (this.maxDamageSwapSourceSlot == -1 || player == null) {
+            return;
+        }
+        this.maxDamageRestoreAtAge = player.age + 1;
+    }
+
+    private boolean isAutoTotemProtecting() {
+        AutoTotemModule autoTotem =
+                AuraRuntime.INSTANCE.moduleRepository().get(AutoTotemModule.class);
+        return autoTotem != null
+                && autoTotem.isState()
+                && autoTotem.trigger();
+    }
+
+    private boolean matchesMaxDamageItem(
+            ItemStack stack,
+            MaxDamageItem selectedItem) {
+        if (stack == null || stack.isEmpty() || selectedItem == null) {
+            return false;
+        }
+        if (selectedItem == MaxDamageItem.TOTEM) {
+            return stack.isOf(Items.TOTEM_OF_UNDYING);
+        }
+        String itemName = StringHelper.stripTextFormat(
+                stack.getName().getString()).toLowerCase().trim();
+        return itemName.contains(selectedItem.serverName());
+    }
+
+    private void attackEntityVanillaSafe(
+            ClientPlayerEntity clientPlayerEntity,
+            ClientPlayerInteractionManager interactionManager,
+            LivingEntity attackTarget) {
+        prepareVisualSprintHold(clientPlayerEntity);
+        interactionManager.attackEntity(clientPlayerEntity, attackTarget);
+    }
+
+        private void prepareVisualSprintHold(ClientPlayerEntity player) {
+        if (!this.keepSprintWhenPossible.isValue()
+                || !player.isSprinting()
+                || shouldResetSprintForAttack(player, 0)) {
+            return;
+        }
+
+        this.visualSprintPlayer = player;
+        this.visualSprintUntilAge = player.age + 1;
+        this.visualSprintEyeHeight = player.getStandingEyeHeight();
+        this.visualSprintPose = player.getPose();
+        this.visualSprintSwimming = player.isInSwimmingPose();
+        this.visualSprintLeaningPitch = player.getLeaningPitch(1.0F);
+    }
+
+    public boolean shouldHoldSprintVisual(ClientPlayerEntity player) {
+        return isState()
+                && this.keepSprintWhenPossible.isValue()
+                && player != null
+                && player == this.visualSprintPlayer
+                && player.age <= this.visualSprintUntilAge;
+    }
+
+    public float visualSprintEyeHeight() {
+        return this.visualSprintEyeHeight;
+    }
+
+    public EntityPose visualSprintPose() {
+        return this.visualSprintPose;
+    }
+
+    public boolean visualSprintSwimming() {
+        return this.visualSprintSwimming;
+    }
+
+    public float visualSprintLeaningPitch() {
+        return this.visualSprintLeaningPitch;
+    }
+
+    private void clearPreparedHotbarSlot(ClientPlayerEntity clientPlayerEntity, boolean restoreSelectedSlot) {
+        AuraRuntime.INSTANCE.inventoryService().hotbarSlotSwapper().cancel(this);
+        if (restoreSelectedSlot && clientPlayerEntity != null) {
+            if (this.maceInventorySourceSlot != -1 && this.maceInventoryTargetSlot != -1) {
+                PlayerActionUtil.INSTANCE.windowClick(
+                    SlotActionType.SWAP,
+                    this.maceInventorySourceSlot,
+                    this.maceInventoryTargetSlot,
+                    true
+                );
+            }
+            if (this.maceRestoreSelectedSlot != -1) {
+                this.maceInternalSlotChange = true;
+                try {
+                    clientPlayerEntity.getInventory().setSelectedSlot(this.maceRestoreSelectedSlot);
+                    clientPlayerEntity.networkHandler.sendPacket(
+                            new UpdateSelectedSlotC2SPacket(
+                                    this.maceRestoreSelectedSlot));
+                } finally {
+                    this.maceInternalSlotChange = false;
+                }
+            }
+        }
+        this.maceRestoreSelectedSlot = -1;
+        this.maceInventorySourceSlot = -1;
+        this.maceInventoryTargetSlot = -1;
+    }
+
+    private void requestMaceRestore(
+            ClientPlayerEntity clientPlayerEntity,
+            int delayTicks) {
+        if (this.preparedMace == null) {
+            if (!this.maceSwapScheduled) {
+                this.maceRestoreAtAge = Integer.MIN_VALUE;
+            }
+            return;
+        }
+        if (clientPlayerEntity == null) {
+            clearMacePreparation(null, false);
+            return;
+        }
+        int restoreAge = clientPlayerEntity.age + Math.max(0, delayTicks);
+        if (this.maceRestoreAtAge == Integer.MIN_VALUE
+                || restoreAge < this.maceRestoreAtAge) {
+            this.maceRestoreAtAge = restoreAge;
+        }
+    }
+
+    private void queueMaceRestore(ClientPlayerEntity clientPlayerEntity) {
+        if (this.preparedMace == null) {
+            this.maceRestoreAtAge = Integer.MIN_VALUE;
+            return;
+        }
+        if (this.maceRestoreScheduled) {
+            return;
+        }
+        if (!GrimDelayHandler.script.isFinished()) {
+            this.maceRestoreAtAge = clientPlayerEntity.age + 1;
+            return;
+        }
+
+        this.maceRestoreScheduled = true;
+        this.maceRestoreAtAge = Integer.MIN_VALUE;
+        GrimDelayHandler.addTask(RotationManager.INSTANCE.getCurrentRotation(), () -> {
+            if (!this.maceRestoreScheduled) {
+                return;
+            }
+            this.maceRestoreScheduled = false;
+            clearPreparedHotbarSlot(clientPlayerEntity, true);
+            this.preparedMace = null;
+            this.macePreparedTicks = 0;
+            this.maceSwapCooldownUntil =
+                    System.currentTimeMillis() + MACE_SWAP_COOLDOWN_MS;
+        });
+    }
+
+    private void resetMaceSwapState() {
+        this.preparedMace = null;
+        this.maceRestoreSelectedSlot = -1;
+        this.maceInventorySourceSlot = -1;
+        this.maceInventoryTargetSlot = -1;
+        this.macePreparedTicks = 0;
+        this.maceRestoreAtAge = Integer.MIN_VALUE;
+    }
+
+    private void clearMacePreparation(ClientPlayerEntity clientPlayerEntity, boolean restoreServerSlot) {
+        this.maceSwapScheduled = false;
+        this.maceRestoreScheduled = false;
+        this.maceRestoreAtAge = Integer.MIN_VALUE;
+        clearPreparedHotbarSlot(clientPlayerEntity, restoreServerSlot);
+        resetMaceSwapState();
+    }
+
+    public boolean verticalCollisionSnapshot(int i) {
+        LivingEntity player = Mc.INSTANCE.getPlayer();
+        return ((Boolean) PlayerSnapshotManager.INSTANCE.getSnapshot(player, i).map(class373Var -> {
+            return Boolean.valueOf(class373Var.verticalCollision);
+        }).orElse(Boolean.valueOf(((ClientPlayerEntity) player).verticalCollision))).booleanValue();
+    }
+
+    int getAttackDelay() {
+        int i = this.hitCounter;
+        return switch ((AuraRotationMode) this.rotationMode.currentValue()) {
+            case FUNTIME -> this.funtimeAttackDelays[i % this.funtimeAttackDelays.length];
+            case SMOOTH -> this.smoothAttackDelays[i % this.smoothAttackDelays.length];
+            case GRIM -> this.grimAttackDelays[i % this.grimAttackDelays.length];
+            default -> 10;
+        };
+    }
+
+    private boolean isSpookyTimeMode(AuraRotationMode mode) {
+        return mode == AuraRotationMode.SPOOKYTIME;
+    }
+
+    private DirectionalInput createSpookyDistanceInput(ClientPlayerEntity player) {
+        int targetId = this.target.getId();
+        if (targetId != this.spookyDistanceTargetId) {
+            this.spookyDistanceTargetId = targetId;
+        }
+
+        Box playerBox = player.getBoundingBox();
+        Box targetBox = this.target.getBoundingBox();
+        double hitboxGap = getHorizontalHitboxGap(playerBox, targetBox);
+        boolean airborne = !player.isOnGround();
+        double controlGap = hitboxGap;
+        if (airborne) {
+            Vec3d velocity = player.getVelocity();
+            Box predictedBox = playerBox.offset(
+                    velocity.x * SPOOKY_AIR_PREDICTION_TICKS,
+                    0.0D,
+                    velocity.z * SPOOKY_AIR_PREDICTION_TICKS);
+            controlGap = Math.min(
+                    hitboxGap,
+                    getHorizontalHitboxGap(predictedBox, targetBox));
+        }
+
+        double holdGap = airborne
+                ? SPOOKY_AIR_APPROACH_GAP
+                : SPOOKY_DISTANCE_APPROACH_GAP;
+        if (controlGap <= holdGap) {
+            return DirectionalInput.NONE;
+        }
+
+        if (!airborne
+                && hitboxGap < SPOOKY_FINE_STEP_GAP
+                && player.age % 3 == 2) {
+            return DirectionalInput.NONE;
+        }
+
+        if (this.moveCorrectionMode.isSelected(MoveCorrectionMode.FOCUS)) {
+            return new DirectionalInput(true, false, false, false);
+        }
+
+        Vec3d targetDirection = this.target.getEntityPos().subtract(player.getEntityPos());
+        return MovementInputHelper.getDirectionalInputForDegrees(
+                DirectionalInput.NONE,
+                MovementInputHelper.getDegreesRelativeToView(
+                        targetDirection,
+                        player.getYaw()));
+    }
+
+    private double getHorizontalHitboxGap(Box playerBox, Box targetBox) {
+        double xGap = Math.max(
+                0.0D,
+                Math.max(targetBox.minX - playerBox.maxX, playerBox.minX - targetBox.maxX));
+        double zGap = Math.max(
+                0.0D,
+                Math.max(targetBox.minZ - playerBox.maxZ, playerBox.minZ - targetBox.maxZ));
+        return Math.hypot(xGap, zGap);
+    }
+
+    private void resetSpookyDistanceControl() {
+        this.spookyDistanceTargetId = Integer.MIN_VALUE;
+    }
+
+    private void finishAuraRotationWithoutReturn(
+            ClientPlayerEntity player,
+            RotationManager rotationManager) {
+        if (this.rotationReturn.isValue()
+                || !this.auraRotationActive
+                || player == null) {
+            return;
+        }
+        Rotation rotation = rotationManager.getCurrentRotationOriginal();
+        if (rotation == null) {
+            return;
+        }
+
+        float yaw = rotation.getYaw();
+        float pitch = rotation.getPitch();
+        player.setYaw(yaw);
+        player.setPitch(pitch);
+        player.lastYaw = yaw;
+        player.lastPitch = pitch;
+    }
+
+    public Stopwatch attackTimer() {
+        return this.attackTimer;
+    }
+
+    public Stopwatch lookingTimer() {
+        return this.lookingTimer;
+    }
+
+    public int attackCooldown() {
+        return this.attackCooldown;
+    }
+
+    public int sprintTicks() {
+        return this.sprintTicks;
+    }
+
+    public Aura hitCounter(int i) {
+        this.hitCounter = i;
+        return this;
+    }
+
+    public int hitCounter() {
+        return this.hitCounter;
+    }
+
+    public LivingEntity target() {
+        return this.target;
+    }
+
+    public LivingEntity lastTarget() {
+        return this.lastTarget;
+    }
+
+    public LivingEntity getTarget() {
+        return target();
+    }
+
+    public LivingEntity getLastTarget() {
+        return lastTarget();
+    }
+}
