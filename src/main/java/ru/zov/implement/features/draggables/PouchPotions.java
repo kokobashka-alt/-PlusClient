@@ -94,7 +94,7 @@ public class PouchPotions extends AbstractDraggable {
             fontPotion.drawString(matrix, name + level, this.getX() + 18, this.getY() + offset + 1, ColorUtil.getText());
 
             // Время (справа)
-            int timeWidth = fontPotion.getStringWidth(time);
+            int timeWidth = (int) fontPotion.getStringWidth(time);
             fontPotion.drawString(matrix, time, this.getX() + this.getWidth() - timeWidth - 5, this.getY() + offset + 1, ColorUtil.getText(0.7F));
 
             int width = (int) fontPotion.getStringWidth(name + level + time) + 30;
