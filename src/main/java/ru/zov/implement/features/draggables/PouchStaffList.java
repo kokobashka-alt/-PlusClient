@@ -1,4 +1,3 @@
-
 package ru.zov.implement.features.draggables;
 
 import net.minecraft.client.MinecraftClient;
@@ -14,7 +13,6 @@ import java.util.List;
 public class PouchStaffList extends AbstractDraggable {
 
     private final MinecraftClient mc = MinecraftClient.getInstance();
-
     private final List<String> staff = new ArrayList<>();
 
     public PouchStaffList() {
@@ -37,7 +35,7 @@ public class PouchStaffList extends AbstractDraggable {
             }
 
             String prefix = team.getPrefix().getString().toLowerCase();
-            String name = entry.getProfile().getName();
+            String name = entry.getProfile().name();
 
             if (isStaff(prefix)) {
                 String status = "ONLINE";
@@ -47,7 +45,7 @@ public class PouchStaffList extends AbstractDraggable {
                 } else if (mc.world != null
                         && mc.world.getPlayers().stream()
                         .anyMatch(player -> player.getGameProfile()
-                                .getName().equals(name))) {
+                                .name().equals(name))) {
                     status = "NEAR";
                 }
 
@@ -81,17 +79,17 @@ public class PouchStaffList extends AbstractDraggable {
         int width = 130;
         int height = 23 + staff.size() * 15;
 
-        context.fill(
-                x, y,
-                x + width, y + height,
-                0xAA101010
-        );
+        for (String entry : staff) {
+            String[] parts = entry.split("\\|", 2);
+            width = Math.max(
+                    width,
+                    mc.textRenderer.getWidth(parts[0])
+                            + mc.textRenderer.getWidth(parts[1]) + 20
+            );
+        }
 
-        context.fill(
-                x, y,
-                x + 2, y + height,
-                0xFF8B5CF6
-        );
+        context.fill(x, y, x + width, y + height, 0xAA101010);
+        context.fill(x, y, x + 2, y + height, 0xFF8B5CF6);
 
         context.drawText(
                 mc.textRenderer,
@@ -102,11 +100,9 @@ public class PouchStaffList extends AbstractDraggable {
         );
 
         int offset = 23;
-        int maxWidth = width;
 
         for (String entry : staff) {
             String[] parts = entry.split("\\|", 2);
-
             String name = parts[0];
             String status = parts[1];
 
@@ -135,16 +131,10 @@ public class PouchStaffList extends AbstractDraggable {
                     false
             );
 
-            maxWidth = Math.max(
-                    maxWidth,
-                    mc.textRenderer.getWidth(name)
-                            + statusWidth + 20
-            );
-
             offset += 15;
         }
 
-        setWidth(maxWidth);
+        setWidth(width);
         setHeight(height);
     }
 }
