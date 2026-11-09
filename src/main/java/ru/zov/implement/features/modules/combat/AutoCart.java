@@ -74,7 +74,7 @@ public class AutoCart extends Module {
     private Slot prevSlot;
 
     public AutoCart() {
-        super("AutoCart", "Ставит и взрывает ТНТ-вагонетку на рельсе", ModuleCategory.COMBAT);
+        super("AutoCart", "AutoCart", ModuleCategory.COMBAT);
         setup(new Setting[]{ ignite, igniteMode, drawTicks, swapMode, debugMessages });
     }
 
