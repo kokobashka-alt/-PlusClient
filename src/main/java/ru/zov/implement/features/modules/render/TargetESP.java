@@ -11,6 +11,8 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
@@ -93,11 +95,11 @@ public class TargetESP extends Module {
         if (fade <= 0.03f || target == null) return;
 
         MatrixStack matrixStack = e.getMatrixStack();
-        Vec3d camPos = mc.gameRenderer.getCamera().getPos();
         float tickDelta = e.getTickDelta();
-
-        // Позиция над головой цели
+        net.minecraft.client.render.Camera camera = mc.gameRenderer.getCamera();
+        
         Vec3d targetPos = target.getLerpedPos(tickDelta).add(0, target.getHeight() + 0.5, 0);
+        Vec3d camPos = camera.getPos();
         
         double x = targetPos.x - camPos.x;
         double y = targetPos.y - camPos.y;
@@ -106,28 +108,32 @@ public class TargetESP extends Module {
         matrixStack.push();
         matrixStack.translate(x, y, z);
         
-        // Поворачиваем череп к камере (Billboard)
-        matrixStack.multiply(mc.gameRenderer.getCamera().getRotation());
+        // Поворот к камере (Billboard)
+        float pitch = camera.getPitch();
+        float yaw = camera.getYaw();
+        matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-yaw));
+        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
         
         float size = radius.getValue();
 
+        // Включаем блендинг и отключаем тест глубины (чтобы видно было сквозь стены)
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest(); // Видно сквозь стены
+        RenderSystem.disableDepthTest();
         
         RenderSystem.setShaderTexture(0, SKULL_TEXTURE);
-        RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
+        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
 
         Matrix4f matrix = matrixStack.peek().getPositionMatrix();
-        BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+        BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
         
         int alpha = (int) (fade * 255);
-        int r = 255, g = 255, b = 255; // Белый цвет
         
-        buffer.vertex(matrix, -size / 2, -size / 2, 0).texture(0, 0).color(r, g, b, alpha);
-        buffer.vertex(matrix, -size / 2, size / 2, 0).texture(0, 1).color(r, g, b, alpha);
-        buffer.vertex(matrix, size / 2, size / 2, 0).texture(1, 1).color(r, g, b, alpha);
-        buffer.vertex(matrix, size / 2, -size / 2, 0).texture(1, 0).color(r, g, b, alpha);
+        // Отрисовка квадрата с текстурой
+        buffer.vertex(matrix, -size / 2, -size / 2, 0).texture(0, 0).color(255, 255, 255, alpha);
+        buffer.vertex(matrix, -size / 2, size / 2, 0).texture(0, 1).color(255, 255, 255, alpha);
+        buffer.vertex(matrix, size / 2, size / 2, 0).texture(1, 1).color(255, 255, 255, alpha);
+        buffer.vertex(matrix, size / 2, -size / 2, 0).texture(1, 0).color(255, 255, 255, alpha);
 
         BufferRenderer.drawWithGlobalProgram(buffer.end());
 
