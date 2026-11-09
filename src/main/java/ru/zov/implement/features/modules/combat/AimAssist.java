@@ -8,7 +8,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -62,14 +61,15 @@ public class AimAssist extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
 
+        // Проверка на оружие (без SwordItem/AxeItem, используя урон)
         if (onlyWeapon.isValue()) {
             ItemStack stack = mc.player.getMainHandStack();
+            // Проверяем, что у предмета есть урон атаки > 1 (мечи, топоры)
             if (stack.isEmpty()) return;
-
-            // Use the registry identifier rather than the translated display name,
-            // so this works regardless of the player's language settings.
-            String itemId = Registries.ITEM.getId(stack.getItem()).getPath();
-            if (!itemId.contains("sword") && !itemId.contains("axe") && !itemId.contains("mace")) {
+            
+            // В 1.21.11 проверка урона может быть сложной, поэтому используем простую проверку по имени
+            String name = stack.getItem().getName().getString().toLowerCase();
+            if (!name.contains("sword") && !name.contains("axe") && !name.contains("меч") && !name.contains("топор") && !name.contains("mace")) {
                 return;
             }
         }
