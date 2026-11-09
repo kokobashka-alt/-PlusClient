@@ -10,6 +10,7 @@ import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.entity.PlayerIntersectionUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +21,6 @@ public class PouchStaffList extends AbstractDraggable {
     private final List<String> staff = new ArrayList<>();
 
     public PouchStaffList() {
-        // Координаты x=270, y=60 (справа, как на скриншоте)
         super("PouchStaffList", 270, 60, 120, 25, true);
     }
 
@@ -73,6 +73,10 @@ public class PouchStaffList extends AbstractDraggable {
 
     @Override
     public boolean visible() {
+        // Если открыт чат, принудительно показываем элемент для перетаскивания
+        if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            return true;
+        }
         return !staff.isEmpty();
     }
 
@@ -104,25 +108,33 @@ public class PouchStaffList extends AbstractDraggable {
         int offset = 23;
         int maxWidth = 120;
 
-        for (String entry : staff) {
-            String[] parts = entry.split("\\|", 2);
-            String name = parts[0];
-            String status = parts[1];
-
-            // Ник (слева)
-            fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
-
-            // Статус (справа)
-            int color = status.equals("GM3") ? ColorUtil.getColor(255, 212, 92) : 
-                        status.equals("NEAR") ? ColorUtil.getColor(112, 220, 112) : 
-                        ColorUtil.getText(0.7F);
-
-            int statusWidth = (int) fontItem.getStringWidth(status);
-            fontItem.drawString(matrix, status, this.getX() + this.getWidth() - statusWidth - 5, this.getY() + offset, color);
-
-            int width = (int) fontItem.getStringWidth(name) + statusWidth + 20;
-            maxWidth = Math.max(maxWidth, width);
+        // Если открыт чат и стафа нет, показываем заглушку
+        if (staff.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            fontItem.drawString(matrix, "Staff_Example", this.getX() + 5, this.getY() + offset, ColorUtil.getText(0.5F));
+            int statusWidth = (int) fontItem.getStringWidth("NEAR");
+            fontItem.drawString(matrix, "NEAR", this.getX() + this.getWidth() - statusWidth - 5, this.getY() + offset, ColorUtil.getColor(112, 220, 112));
             offset += 14;
+        } else {
+            for (String entry : staff) {
+                String[] parts = entry.split("\\|", 2);
+                String name = parts[0];
+                String status = parts[1];
+
+                // Ник (слева)
+                fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
+
+                // Статус (справа)
+                int color = status.equals("GM3") ? ColorUtil.getColor(255, 212, 92) : 
+                            status.equals("NEAR") ? ColorUtil.getColor(112, 220, 112) : 
+                            ColorUtil.getText(0.7F);
+
+                int statusWidth = (int) fontItem.getStringWidth(status);
+                fontItem.drawString(matrix, status, this.getX() + this.getWidth() - statusWidth - 5, this.getY() + offset, color);
+
+                int width = (int) fontItem.getStringWidth(name) + statusWidth + 20;
+                maxWidth = Math.max(maxWidth, width);
+                offset += 14;
+            }
         }
 
         this.setWidth(maxWidth);
