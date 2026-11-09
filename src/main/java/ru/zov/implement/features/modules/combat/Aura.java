@@ -339,7 +339,4 @@ public final class Aura extends Module {
                 switch (EventPhaseSwitchMap.phaseOrdinals[class345Var.stage().ordinal()]) {
                     case 1:
                         updateRotation(player, rotationManager);
-                        break;
-                    case 2:
-                        performAttack(player, interactionManager, rotationManager);
-                        break
+                      
