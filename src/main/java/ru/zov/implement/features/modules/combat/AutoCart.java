@@ -50,10 +50,11 @@ public class AutoCart extends Module {
         .selected("Лук")
         .visible(() -> ignite.isValue());
 
-    public final ValueSetting drawTicks = new ValueSetting(
-        "Натяжка", "Сколько тиков натягивать лук")
-        .setValue(20.0f)
-        .range(5.0f, 25.0f)
+    // Новая настройка вместо drawTicks
+    public final ValueSetting bowPower = new ValueSetting(
+        "Множитель натяжения", "Чем выше, тем дольше натягивать на расстоянии (1 тик = минимум)")
+        .setValue(1.0f)
+        .range(0.1f, 2.0f)
         .visible(() -> ignite.isValue() && igniteMode.isSelected("Лук"));
 
     public final SelectSetting swapMode = new SelectSetting(
@@ -75,7 +76,7 @@ public class AutoCart extends Module {
 
     public AutoCart() {
         super("AutoCart", "AutoCart", ModuleCategory.COMBAT);
-        setup(new Setting[]{ ignite, igniteMode, drawTicks, swapMode, debugMessages });
+        setup(new Setting[]{ ignite, igniteMode, bowPower, swapMode, debugMessages });
     }
 
     public static AutoCart getInstance() {
@@ -197,9 +198,19 @@ public class AutoCart extends Module {
                     abort("вагонетка пропала до выстрела");
                     return;
                 }
+                
                 aimAt(cart);
                 mc.options.useKey.setPressed(true);
-                if (++drawCounter >= (int) drawTicks.getValue()) {
+
+                // --- НОВАЯ ЛОГИКА НАТЯЖЕНИЯ ЛУКА ---
+                // Чем дальше вагонетка, тем больше тиков нужно натягивать
+                double distance = mc.player.getEyePos().distanceTo(cart.getEntityPos());
+                
+                // requiredTicks = расстояние * множитель
+                // Ограничиваем от 1 (мгновенный выстрел) до 25 (полный заряд)
+                int requiredTicks = (int) Math.max(1, Math.min(25, distance * bowPower.getValue()));
+
+                if (++drawCounter >= requiredTicks) {
                     mc.options.useKey.setPressed(false);
                     stage = STAGE_RESTORE;
                 }
@@ -214,6 +225,13 @@ public class AutoCart extends Module {
     // ---------- Наводка ----------
     private void aimAt(Entity cart) {
         Vec3d point = cart.getEntityPos().add(0, cart.getHeight() * 0.5, 0);
+        
+        // Компенсация падения стрелы (чем дальше, тем выше целимся)
+        double distance = mc.player.getEyePos().distanceTo(cart.getEntityPos());
+        double heightCompensation = Math.min(distance * 0.15, 2.0);
+        
+        point = point.add(0, heightCompensation, 0);
+
         Angle angle = AngleUtil.fromVec3d(point.subtract(mc.player.getEyePos()));
         Slot bowSlot = PlayerInventoryUtil.getSlot(Items.BOW);
         if (bowSlot != null) {
