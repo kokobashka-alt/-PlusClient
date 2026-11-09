@@ -63,6 +63,7 @@ import ru.zov.implement.features.modules.render.WorldTweaks;
 import ru.zov.implement.features.modules.render.XRay;
 import ru.zov.implement.features.modules.combat.AutoCart;
 import ru.zov.implement.features.modules.combat.AutoGApple;
+import ru.zov.implement.features.modules.render.SystemHud;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -128,9 +129,10 @@ public class ModuleRepository {
          new AutoWeb(),
          new AutoBuy(),
          new ServerRPSpoofer(),
-         new AutoCart(),
-         new AutoGApple()
-      );
+            new AutoCart(),
+   new AutoGApple(),
+   new SystemHud() // <--- Добавили сюда
+);
    }
 
    @Native
