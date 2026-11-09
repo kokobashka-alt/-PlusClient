@@ -64,6 +64,7 @@ import ru.zov.implement.features.modules.render.XRay;
 import ru.zov.implement.features.modules.combat.AutoCart;
 import ru.zov.implement.features.modules.combat.AutoGApple;
 import ru.zov.implement.features.modules.render.SystemHud;
+import ru.zov.implement.features.modules.render.TargetESP;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -131,7 +132,8 @@ public class ModuleRepository {
          new ServerRPSpoofer(),
             new AutoCart(),
    new AutoGApple(),
-   new SystemHud() // <--- Добавили сюда
+   new SystemHud(),
+   new TargetESP()
 );
    }
 
