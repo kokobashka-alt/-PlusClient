@@ -23,7 +23,7 @@ public class JumpCircle extends Module {
     private final List<Circle> circles = new ArrayList<>();
 
     public JumpCircle() {
-        super("JumpCircle", "Круги при прыжке", ModuleCategory.RENDER);
+        super("JumpCircle", "JumpCircles", ModuleCategory.RENDER);
         this.setup(new Setting[]{radius, duration});
     }
 
