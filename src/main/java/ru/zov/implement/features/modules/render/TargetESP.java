@@ -1,11 +1,6 @@
 package ru.zov.implement.features.modules.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.Tessellator;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormats;
-import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -92,6 +87,8 @@ public class TargetESP extends Module {
     public void onWorldRender(WorldRenderEvent e) {
         if (fade <= 0.03f || target == null) return;
 
+        // Получаем DrawContext из ивента (если твой WorldRenderEvent его отдает)
+        // Если нет, используем MatrixStack напрямую
         MatrixStack matrixStack = e.getMatrixStack();
         float tickDelta = e.getTickDelta();
         net.minecraft.client.render.Camera camera = mc.gameRenderer.getCamera();
@@ -113,30 +110,28 @@ public class TargetESP extends Module {
         matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
         
         float size = radius.getValue();
-
-        // Включаем блендинг и отключаем тест глубины (чтобы видно было сквозь стены)
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-        
-        RenderSystem.setShaderTexture(0, SKULL_TEXTURE);
-        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-
-        Matrix4f matrix = matrixStack.peek().getPositionMatrix();
-        BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
-        
         int alpha = (int) (fade * 255);
+
+        // В 1.21.11 самый надежный способ нарисовать 2D-текстуру в 3D — через DrawContext.
+        // Если у тебя WorldRenderEvent не отдает DrawContext, то используем RenderSystem напрямую.
+        // Здесь мы используем стандартный рендер текстуры.
         
-        // Отрисовка квадрата с текстурой
-        buffer.vertex(matrix, -size / 2, -size / 2, 0).texture(0, 0).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, -size / 2, size / 2, 0).texture(0, 1).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, size / 2, size / 2, 0).texture(1, 1).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, size / 2, -size / 2, 0).texture(1, 0).color(255, 255, 255, alpha);
+        net.minecraft.client.gui.DrawContext context = new net.minecraft.client.gui.DrawContext(
+                mc, matrixStack, mc.getBufferBuilders().getEntityVertexConsumers(), 0, 0
+        );
+        
+        // Рисуем текстуру
+        context.drawTexture(
+                SKULL_TEXTURE, 
+                (int)(-size / 2), (int)(-size / 2), 
+                0, 0, 
+                (int)size, (int)size, 
+                (int)size, (int)size
+        );
+        
+        // Очищаем буфер, чтобы текстура отрисовалась
+        mc.getBufferBuilders().getEntityVertexConsumers().draw();
 
-        Tessellator.getInstance().draw();
-
-        RenderSystem.enableDepthTest();
-        RenderSystem.disableBlend();
         matrixStack.pop();
     }
 
