@@ -57,7 +57,7 @@ public class TargetPearl extends Module {
 
     public TargetPearl() {
         super("TargetPearl",
-              "Бросает жемчуг к прогнозируемой точке приземления чужого жемчуга",
+              "TargetPearl",
               ModuleCategory.COMBAT);
         this.setup(new Setting[]{ ignoreFriends, distance });
     }
