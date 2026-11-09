@@ -1,66 +1,29 @@
+package ru.zov.implement.features.modules.render;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.Tessellator; // В Yarn 1.21.11 Tessellator лежит здесь
+import com.mojang.blaze3d.vertex.Tessellator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormats;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
-// ... внутри класса ...
-
-    @EventHandler
-    public void onWorldRender(WorldRenderEvent e) {
-        if (fade <= 0.03f || target == null) return;
-
-        MatrixStack matrixStack = e.getMatrixStack();
-        float tickDelta = e.getTickDelta();
-        net.minecraft.client.render.Camera camera = mc.gameRenderer.getCamera();
-        
-        Vec3d targetPos = target.getLerpedPos(tickDelta).add(0, target.getHeight() + 0.5, 0);
-        Vec3d camPos = camera.getPos();
-        
-        double x = targetPos.x - camPos.x;
-        double y = targetPos.y - camPos.y;
-        double z = targetPos.z - camPos.z;
-
-        matrixStack.push();
-        matrixStack.translate(x, y, z);
-        
-        float pitch = camera.getPitch();
-        float yaw = camera.getYaw();
-        matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-yaw));
-        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-        
-        float size = radius.getValue();
-
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-        
-        RenderSystem.setShaderTexture(0, SKULL_TEXTURE);
-        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-
-        Matrix4f matrix = matrixStack.peek().getPositionMatrix();
-        BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
-        
-        int alpha = (int) (fade * 255);
-        
-        buffer.vertex(matrix, -size / 2, -size / 2, 0).texture(0, 0).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, -size / 2, size / 2, 0).texture(0, 1).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, size / 2, size / 2, 0).texture(1, 1).color(255, 255, 255, alpha);
-        buffer.vertex(matrix, size / 2, -size / 2, 0).texture(1, 0).color(255, 255, 255, alpha);
-
-        // Вместо BufferRenderer.drawWithGlobalProgram(buffer.end()) используем:
-        Tessellator.getInstance().draw();
-
-        RenderSystem.enableDepthTest();
-        RenderSystem.disableBlend();
-        matrixStack.pop();
-}
+import ru.zov.api.event.EventHandler;
+import ru.zov.api.feature.module.Module;
+import ru.zov.api.feature.module.ModuleCategory;
+import ru.zov.api.feature.module.setting.Setting;
+import ru.zov.api.feature.module.setting.implement.BooleanSetting;
+import ru.zov.api.feature.module.setting.implement.SelectSetting;
+import ru.zov.api.feature.module.setting.implement.ValueSetting;
+import ru.zov.common.util.other.Instance;
+import ru.zov.implement.events.player.TickEvent;
+import ru.zov.implement.events.render.WorldRenderEvent;
 
 public class TargetESP extends Module {
 
@@ -170,7 +133,7 @@ public class TargetESP extends Module {
         buffer.vertex(matrix, size / 2, size / 2, 0).texture(1, 1).color(255, 255, 255, alpha);
         buffer.vertex(matrix, size / 2, -size / 2, 0).texture(1, 0).color(255, 255, 255, alpha);
 
-        BufferRenderer.drawWithGlobalProgram(buffer.end());
+        Tessellator.getInstance().draw();
 
         RenderSystem.enableDepthTest();
         RenderSystem.disableBlend();
