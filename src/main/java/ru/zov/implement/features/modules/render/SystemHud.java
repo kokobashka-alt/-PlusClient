@@ -11,7 +11,7 @@ public class SystemHud extends Module {
     public final BooleanSetting useTracker = new BooleanSetting("UseTracker", "Показывать использование предметов").setValue(true);
 
     public SystemHud() {
-        super("SystemHud", "Второй худ (SystemDLC)", ModuleCategory.RENDER);
+        super("SystemHud", "НЕ РАБОТАЕТ!", ModuleCategory.RENDER);
         this.setup(new Setting[]{ useTracker });
     }
 
