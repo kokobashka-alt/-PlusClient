@@ -9,7 +9,7 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
 import ru.zov.implement.events.render.WorldRenderEvent;
-import ru.zov.implement.utils.render.Render3DUtil;
+import ru.zov.common.util.render.Render3DUtil;
 
 import java.util.ArrayList;
 import java.util.Iterator;
