@@ -643,4 +643,11 @@ public boolean isActiveItemStackBlocking(LivingEntity livingEntity, int i) {
         return false;
     }
     Item item = livingEntity.activeItemStack.getItem();
+    return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK
+            && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity)
+                    - livingEntity.getItemUseTime() > i;
+}
+};
+    }
+    Item item = livingEntity.activeItemStack.getItem();
     return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity
