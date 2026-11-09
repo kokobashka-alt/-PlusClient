@@ -6,6 +6,10 @@ import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.world.GameMode;
 import ru.zov.api.feature.draggable.AbstractDraggable;
+import ru.zov.api.system.font.FontRenderer;
+import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
+import ru.zov.common.util.color.ColorUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +20,8 @@ public class PouchStaffList extends AbstractDraggable {
     private final List<String> staff = new ArrayList<>();
 
     public PouchStaffList() {
-        super("PouchStaffList", 300, 150, 120, 25, true);
+        // Координаты x=270, y=60 (справа, как на скриншоте)
+        super("PouchStaffList", 270, 60, 120, 25, true);
     }
 
     @Override
@@ -73,68 +78,54 @@ public class PouchStaffList extends AbstractDraggable {
 
     @Override
     public void drawDraggable(DrawContext context) {
-        int x = (int) getX();
-        int y = (int) getY();
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
+        FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        int width = 130;
-        int height = 23 + staff.size() * 15;
+        // Заголовок с блюром
+        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
+                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
 
-        for (String entry : staff) {
-            String[] parts = entry.split("\\|", 2);
-            width = Math.max(
-                    width,
-                    mc.textRenderer.getWidth(parts[0])
-                            + mc.textRenderer.getWidth(parts[1]) + 20
-            );
-        }
+        // Основной фон
+        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
+                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
 
-        context.fill(x, y, x + width, y + height, 0xAA101010);
-        context.fill(x, y, x + 2, y + height, 0xFF8B5CF6);
+        // Заголовок по центру
+        float centerX = this.getX() + this.getWidth() / 2.0F;
+        String header = "Staff List";
+        font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
 
-        context.drawText(
-                mc.textRenderer,
-                "Staff List",
-                x + 7, y + 6,
-                0xFF8B5CF6,
-                false
-        );
+        // Полоска акцента
+        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
+                .color(ColorUtil.getClientColor()).build());
 
         int offset = 23;
+        int maxWidth = 120;
 
         for (String entry : staff) {
             String[] parts = entry.split("\\|", 2);
             String name = parts[0];
             String status = parts[1];
 
-            context.drawText(
-                    mc.textRenderer,
-                    name,
-                    x + 7, y + offset,
-                    0xFFFFFFFF,
-                    false
-            );
+            // Ник (слева)
+            fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
 
-            int color = status.equals("GM3")
-                    ? 0xFFFFD45C
-                    : status.equals("NEAR")
-                    ? 0xFF70DC70
-                    : 0xFFAAAAAA;
+            // Статус (справа)
+            int color = status.equals("GM3") ? ColorUtil.getColor(255, 212, 92) : 
+                        status.equals("NEAR") ? ColorUtil.getColor(112, 220, 112) : 
+                        ColorUtil.getText(0.7F);
 
-            int statusWidth = mc.textRenderer.getWidth(status);
+            int statusWidth = fontItem.getStringWidth(status);
+            fontItem.drawString(matrix, status, this.getX() + this.getWidth() - statusWidth - 5, this.getY() + offset, color);
 
-            context.drawText(
-                    mc.textRenderer,
-                    status,
-                    x + width - statusWidth - 7,
-                    y + offset,
-                    color,
-                    false
-            );
-
-            offset += 15;
+            int width = (int) fontItem.getStringWidth(name) + statusWidth + 20;
+            maxWidth = Math.max(maxWidth, width);
+            offset += 14;
         }
 
-        setWidth(width);
-        setHeight(height);
+        this.setWidth(maxWidth);
+        this.setHeight(offset + 5);
     }
 }
