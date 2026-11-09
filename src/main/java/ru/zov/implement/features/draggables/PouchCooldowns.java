@@ -125,7 +125,7 @@ public class PouchCooldowns extends AbstractDraggable {
             fontItem.drawString(matrix, name, this.getX() + 23, this.getY() + offset, ColorUtil.getText());
 
             // Время (справа)
-            int durationWidth = fontItem.getStringWidth(duration);
+            int durationWidth = (int) fontItem.getStringWidth(duration);
             fontItem.drawString(matrix, duration, this.getX() + this.getWidth() - durationWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
 
             int width = (int) fontItem.getStringWidth(name) + durationWidth + 35;
