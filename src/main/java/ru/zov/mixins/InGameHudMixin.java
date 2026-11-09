@@ -38,35 +38,54 @@ public abstract class InGameHudMixin implements QuickImports {
    @Shadow
    protected abstract void renderMountHealth(DrawContext var1);
 
-   @Inject(
-      method = {"render"},
-      at = {@At("RETURN")}
-   )
-   public void onRender(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-      blur.setup();
-      EventManager.callEvent(new DrawEvent(context));
-      Render2DUtil.onRender(context);
-      if (!this.client.options.hudHidden && !(this.client.currentScreen instanceof ChatScreen)) {
-         main.getDraggableRepository().draggable().forEach((draggable) -> {
-            if (draggable.canDraw(this.hud, draggable)) {
-               draggable.startAnimation();
+@Inject(
+    method = {"render"},
+    at = {@At("RETURN")}
+)
+public void onRender(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+    blur.setup();
+    EventManager.callEvent(new DrawEvent(context));
+    Render2DUtil.onRender(context);
+
+    if (!this.client.options.hudHidden && !(this.client.currentScreen instanceof ChatScreen)) {
+
+        PouchHud pouchHud = PouchHud.getInstance();
+
+        main.getDraggableRepository().draggable().forEach((draggable) -> {
+
+            boolean isPouch = draggable.getName().startsWith("Pouch");
+
+            boolean shouldDraw;
+
+            if (isPouch) {
+                shouldDraw = pouchHud != null
+                        && pouchHud.isState()
+                        && pouchHud.elements.isSelected(draggable.getName())
+                        && draggable.visible();
             } else {
-               draggable.stopAnimation();
+                shouldDraw = draggable.canDraw(this.hud, draggable);
+            }
+
+            if (shouldDraw) {
+                draggable.startAnimation();
+            } else {
+                draggable.stopAnimation();
             }
 
             if (!draggable.isBackwardsFinished()) {
-               draggable.validPosition();
+                draggable.validPosition();
 
-               try {
-                  MathUtil.multAlpha(draggable.getScaleAnimation().getOutput().floatValue(), () -> draggable.drawDraggable(context));
-               } catch (ConcurrentModificationException var4) {
-               }
+                try {
+                    MathUtil.multAlpha(
+                            draggable.getScaleAnimation().getOutput().floatValue(),
+                            () -> draggable.drawDraggable(context)
+                    );
+                } catch (ConcurrentModificationException ignored) {
+                }
             }
-
-         });
-      }
-
-   }
+        });
+    }
+}
 
    @Inject(
       method = {"renderCrosshair"},
