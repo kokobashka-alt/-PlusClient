@@ -68,6 +68,7 @@ import ru.zov.implement.features.modules.combat.killaura.util.TargetSorters;
 import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
+import ru.zov.implement.features.modules.render.TargetESP;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +76,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
+
 import net.minecraft.block.CobwebBlock;
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -100,6 +101,8 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.StringHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.BlockPos;
 
 @Aliases(aliases = {"Attack Aura", "Kill Aura", "Hit Aura", "Aura"})
 public final class Aura extends Module {
@@ -152,6 +155,7 @@ public final class Aura extends Module {
     private final BezierRotationMode bezierRotationMode;
     private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
     private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
+    
     public int attackCooldown;
     public int sprintTicks;
     public int hitCounter;
@@ -193,6 +197,10 @@ public final class Aura extends Module {
     private EntityPose visualSprintPose;
     private boolean visualSprintSwimming;
     private float visualSprintLeaningPitch;
+
+    // Для логики FunTime (выбор точек)
+    private LivingEntity lastPointTarget;
+    private int pointHitCount = -1;
 
     public Aura() {
         super(ModuleTab.COMBAT, "Attack Aura");
@@ -279,7 +287,9 @@ public final class Aura extends Module {
         this.visualSprintPlayer = null;
         this.visualSprintUntilAge = Integer.MIN_VALUE;
         this.visualSprintPose = EntityPose.STANDING;
+        
         addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync);
+        
         register(UseItemEvent.class, class059Var -> {
             if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
                 class059Var.cancel();
@@ -299,7 +309,7 @@ public final class Aura extends Module {
                 if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
                     EntityStatusS2CPacket entityStatusS2CPacket = packet;
                     if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
-                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Ð¡Ð»Ð¾Ð¼Ð°Ð» Ñ‰Ð¸Ñ‚ Ð¸Ð³Ñ€Ð¾ÐºÑƒ " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
+                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
                     }
                 }
             }
@@ -338,7 +348,7 @@ public final class Aura extends Module {
                 RotationManager rotationManager = RotationManager.INSTANCE;
                 switch (EventPhaseSwitchMap.phaseOrdinals[class345Var.stage().ordinal()]) {
                     case 1:
-                        updateRotation(player, rotationManager);
+     updateRotation(player, rotationManager);
                         break;
                     case 2:
                         performAttack(player, interactionManager, rotationManager);
@@ -409,8 +419,8 @@ public final class Aura extends Module {
                 this.auraRotationActive = false;
                 this.spookyAimPoint = null;
                 requestMaceRestore(clientPlayerEntity, 0);
-                restoreMaxDamageItem(clientPlayerEntity
-    return;
+                restoreMaxDamageItem(clientPlayerEntity);
+                return;
             }
             if (this.autoMace.isValue()) {
                 prepareMaceForDive(clientPlayerEntity);
@@ -442,13 +452,17 @@ public final class Aura extends Module {
                 this.spookyAimPoint = resolvedAimPoint.get();
                 aimPoint = this.spookyAimPoint.point();
             } else {
-                aimPoint = (Vec3d) this.hitPointResolver.computeVector(
-                        this.target,
-                        fCurrentValue,
-                        rotationManager.getCurrentRotation(),
-                        selectedRotationMode.randomValue(),
-                        false
-                ).getLeft();
+                if (selectedMode == AuraRotationMode.FUNTIME) {
+                    aimPoint = getFunTimeAimPoint(this.target, fCurrentValue, clientPlayerEntity);
+                } else {
+                    aimPoint = (Vec3d) this.hitPointResolver.computeVector(
+                            this.target,
+                            fCurrentValue,
+                            rotationManager.getCurrentRotation(),
+                            selectedRotationMode.randomValue(),
+                            false
+                    ).getLeft();
+                }
             }
             Vec3d vec3dSubtract = aimPoint.subtract(clientPlayerEntity.getEyePos());
             if (vec3dSubtract == null) {
@@ -493,6 +507,35 @@ public final class Aura extends Module {
             requestMaceRestore(clientPlayerEntity, 0);
             restoreMaxDamageItem(clientPlayerEntity);
         }
+    }
+
+    private Vec3d getFunTimeAimPoint(LivingEntity target, float range, ClientPlayerEntity player) {
+        // Логика выбора точки для FunTime
+        if (target != lastPointTarget) {
+            lastPointTarget = target;
+            pointHitCount = -1;
+        }
+
+        Box box = target.getBoundingBox();
+        Vec3d eyePos = player.getEyePos();
+        
+        List<Vec3d> points = new ArrayList<>();
+        // Создаем сетку точек по хитбоксу
+        for (double x = 0.1; x < 0.9; x += 0.4) {
+            for (double y = 0.2; y < 0.9; y += 0.3) {
+                for (double z = 0.1; z < 0.9; z += 0.4) {
+                    points.add(new Vec3d(
+                        MathHelper.lerp(x, box.minX, box.maxX),
+                        MathHelper.lerp(y, box.minY, box.maxY),
+                        MathHelper.lerp(z, box.minZ, box.maxZ)
+                    ));
+                }
+            }
+        }
+
+        // Если попали в тот же удар, можно оставить точку, но для простоты берем случайную
+        pointHitCount = hitCounter;
+        return points.get((int) (Math.random() * points.size()));
     }
 
     public static Aura getInstance() {
@@ -588,7 +631,8 @@ public final class Aura extends Module {
             }
         }
     }
-       @Override
+
+    @Override
     public void deactivate() {
         ClientPlayerEntity player = this.mc.getPlayer();
         finishAuraRotationWithoutReturn(player, RotationManager.INSTANCE);
@@ -610,34 +654,4 @@ public final class Aura extends Module {
         if (!livingEntity.isUsingItem() || livingEntity.activeItemStack.isEmpty()) {
             return false;
         }
-        Item item = livingEntity.activeItemStack.getItem();
-        return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity) - livingEntity.getItemUseTimeLeft() >= i;
-    }
-
-    public RotationMode getRotationMode() {
-        return switch ((AuraRotationMode) this.rotationMode.currentValue()) {
-            case FUNTIME -> this.funtimeRotationMode;
-            case SPOOKYTIME -> this.spookyTimeRotationMode;
-            case SMOOTH -> this.smoothRotationMode;
-            case GRIM -> this.grimRotationMode;
-            case HOLYWORLD -> this.holyWorldRotationMode;
-            case SLOTH_AC -> this.slothAcRotationMode;
-            case BEZIER -> this.bezierRotationMode;
-            case MLS -> this.mlsRotationMode;
-            case NEURO -> this.neuroRotationMode;
-        };
-    }
-
-    public LivingEntity findTarget(ClientPlayerEntity clientPlayerEntity, boolean z) {
-        float fCurrentValue = this.maxDistance.currentValue() + this.extraDistance.currentValue();
-        boolean maceDiveTargeting = canStartMaceDiveTargeting(clientPlayerEntity);
-        if (clientPlayerEntity.isCreative()) {
-            fCurrentValue = (float) Math.max(fCurrentValue, clientPlayerEntity.getEntityInteractionRange());
-        }
-        Vec3d vec3dNormalize = RotationMath.INSTANCE.rotationToVector(Rotation.playerRotation()).normalize();
-        boolean currentTargetValid = maceDiveTargeting
-                ? isValidMaceDiveTarget(this.target, clientPlayerEntity)
-                : isValidTarget(this.target, clientPlayerEntity, fCurrentValue);
-        if (z && currentTargetValid) {
-            double dDotProduct = vec3dNormalize.dotProduct(this.target.getEntityPos().subtract(clientPlayerEntity.getEntityPos()).normalize());
-            double dCos = Math.cos(Math.toRadians
+        Item item = livingEntity.activeItemStack
