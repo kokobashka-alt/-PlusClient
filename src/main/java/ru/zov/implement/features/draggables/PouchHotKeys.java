@@ -70,7 +70,7 @@ public class PouchHotKeys extends AbstractDraggable {
             fontItem.drawString(matrix, name, this.getX() + 5, this.getY() + offset, ColorUtil.getText());
 
             // Бинд (справа)
-            int bindWidth = fontItem.getStringWidth(bind);
+            int bindWidth = (int) fontItem.getStringWidth(bind);
             fontItem.drawString(matrix, bind, this.getX() + this.getWidth() - bindWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
 
             int width = (int) fontItem.getStringWidth(name) + bindWidth + 20;
