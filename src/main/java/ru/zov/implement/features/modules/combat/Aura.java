@@ -395,7 +395,6 @@ public final class Aura extends Module {
         if (selectedMode != this.observedRotationMode) {
             if (isSpookyTimeMode(selectedMode)
                     || isSpookyTimeMode(this.observedRotationMode)) {
-                this.spookyTimeRotationMode.reset();
                 this.spookyAimPoint = null;
             }
             this.observedRotationMode = selectedMode;
@@ -497,7 +496,6 @@ public final class Aura extends Module {
                 this.lastTarget = this.target;
             }
         } else {
-            this.spookyTimeRotationMode.reset();
             this.spookyAimPoint = null;
             requestMaceRestore(clientPlayerEntity, 0);
             restoreMaxDamageItem(clientPlayerEntity);
@@ -631,7 +629,6 @@ public final class Aura extends Module {
         this.maceAttackedThisFall = false;
         this.target = null;
         this.spookyAimPoint = null;
-        this.spookyTimeRotationMode.reset();
         resetSpookyDistanceControl();
         this.visualSprintPlayer = null;
         this.visualSprintUntilAge = Integer.MIN_VALUE;
