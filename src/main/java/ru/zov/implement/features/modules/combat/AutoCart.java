@@ -4,6 +4,7 @@ import net.minecraft.block.AbstractRailBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.vehicle.TntMinecartEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.Hand;
@@ -27,28 +28,27 @@ import ru.zov.implement.features.draggables.Notifications;
 
 public class AutoCart extends Module {
 
-    // ---------- Константы ----------
     private static final double BLOCK_REACH = 4.2;
     private static final double ENTITY_REACH = 2.9;
     private static final int SEARCH_RADIUS = 5;
 
-    private static final int STAGE_FIND          = 0;
-    private static final int STAGE_SWAP_CART     = 1;
-    private static final int STAGE_PLACE_CART    = 2;
-    private static final int STAGE_SWAP_IGNITER  = 3;
-    private static final int STAGE_FLINT_IGNITE  = 4;
-    private static final int STAGE_BOW_DRAW      = 5;
-    private static final int STAGE_RESTORE       = 6;
+    private static final int STAGE_FIND         = 0;
+    private static final int STAGE_SWAP_CART    = 1;
+    private static final int STAGE_PLACE_CART   = 2;
+    private static final int STAGE_SWAP_IGNITER = 3;
+    private static final int STAGE_FLINT_IGNITE = 4;
+    private static final int STAGE_BOW_DRAW     = 5;
+    private static final int STAGE_RESTORE      = 6;
 
     // ---------- Настройки ----------
     public final BooleanSetting ignite = new BooleanSetting(
         "Поджигать", "Взрывать вагонетку после установки").setValue(true);
 
-public final SelectSetting igniteMode = new SelectSetting(
-    "Поджиг", "Способ детонации")
-    .value("Лук", "Огниво")
-    .selected("Лук")
-    .visible(() -> ignite.isValue());
+    public final SelectSetting igniteMode = new SelectSetting(
+        "Поджиг", "Способ детонации")
+        .value("Лук", "Огниво")
+        .selected("Лук")
+        .visible(() -> ignite.isValue());
 
     public final ValueSetting drawTicks = new ValueSetting(
         "Натяжка", "Сколько тиков натягивать лук")
@@ -57,9 +57,9 @@ public final SelectSetting igniteMode = new SelectSetting(
         .visible(() -> ignite.isValue() && igniteMode.isSelected("Лук"));
 
     public final SelectSetting swapMode = new SelectSetting(
-    "Свап", "Способ переключения")
-    .value("Silent", "Legit")
-    .selected("Silent");
+        "Свап", "Способ переключения")
+        .value("Silent", "Legit")
+        .selected("Silent");
 
     public final BooleanSetting debugMessages = new BooleanSetting(
         "Сообщения", "Писать в чат причины неудач").setValue(true);
@@ -78,7 +78,10 @@ public final SelectSetting igniteMode = new SelectSetting(
         setup(new Setting[]{ ignite, igniteMode, drawTicks, swapMode, debugMessages });
     }
 
-    // ---------- Жизненный цикл ----------
+    public static AutoCart getInstance() {
+        return (AutoCart) ru.zov.common.util.other.Instance.get(AutoCart.class);
+    }
+
     @Override
     public void activate() {
         stage = STAGE_FIND;
@@ -130,8 +133,12 @@ public final SelectSetting igniteMode = new SelectSetting(
 
                 if (ignite.isValue()) {
                     if (isBowMode()) {
-                        if (PlayerInventoryUtil.getSlot(Items.BOW) == null) { abort("нет лука"); return; }
-                        if (!mc.player.getAbilities().creativeMode && !hasArrows()) { abort("нет стрел"); return; }
+                        if (PlayerInventoryUtil.getSlot(Items.BOW) == null) {
+                            abort("нет лука"); return;
+                        }
+                        if (!mc.player.getAbilities().creativeMode && !hasArrows()) {
+                            abort("нет стрел"); return;
+                        }
                     } else if (PlayerInventoryUtil.getSlot(Items.FLINT_AND_STEEL) == null) {
                         abort("нет огнива"); return;
                     }
@@ -208,14 +215,10 @@ public final SelectSetting igniteMode = new SelectSetting(
     private void aimAt(Entity cart) {
         Vec3d point = cart.getEntityPos().add(0, cart.getHeight() * 0.5, 0);
         Angle angle = AngleUtil.fromVec3d(point.subtract(mc.player.getEyePos()));
-        // если в вашем AngleUtil нет fromVec3d — используйте AngleUtil.calculateAngle(point)
-        // но в TargetPearl вы уже используете calculateAngle — проверьте.
-        // На всякий случай — прямая замена:
-        // Angle angle = AngleUtil.calculateAngle(point);
-        PlayerInventoryUtil.swapAndUse(
-            PlayerInventoryUtil.getSlot(Items.BOW), angle, false);
-        // НЕ используем RotationManager.rotateTo — он требует Module (у нас AutoCart),
-        // но для лука достаточно swapAndUse(Slot, Angle, task).
+        Slot bowSlot = PlayerInventoryUtil.getSlot(Items.BOW);
+        if (bowSlot != null) {
+            PlayerInventoryUtil.swapAndUse(bowSlot, angle, false);
+        }
     }
 
     // ---------- Хелперы ----------
@@ -270,21 +273,18 @@ public final SelectSetting igniteMode = new SelectSetting(
     }
 
     /** Свап на предмет в хотбаре. Возвращает true, если предмет уже в руке. */
-    private boolean swapTo(net.minecraft.item.Item item) {
+    private boolean swapTo(Item item) {
         Slot slot = PlayerInventoryUtil.getSlot(item);
         if (slot == null) {
             abort("предмет " + item.getName().getString() + " пропал");
             return false;
         }
-        // если это уже выбранный слот — ничего не делаем
         if (slot.id == PlayerInventoryUtil.mainHandSlot().id) return true;
 
         if (!swapped) {
             prevSlot = PlayerInventoryUtil.mainHandSlot();
             swapped = true;
         }
-        // silentSwap фактически дублируется в swapHand(task=true/false)
-        // PlayerInventoryUtil сам решает, как свапать.
         PlayerInventoryUtil.swapHand(slot, Hand.MAIN_HAND, silentSwap);
         return true;
     }
