@@ -21,7 +21,6 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.implement.features.modules.combat.killaura.ui.ModuleTab;
 
 public class AimAssist extends Module {
 
@@ -45,7 +44,7 @@ public class AimAssist extends Module {
             .setValue(false);
 
     public AimAssist() {
-        super("AimAssist", "CombatAim(systemdlc)", ModuleTab.COMBAT);
+        super("AimAssist", "CombatAim(systemdlc)", ModuleCategory.COMBAT);
         this.setup(new Setting[]{rotationMode, speed, distance, fov, priority, sticky, onlyWeapon});
     }
 
@@ -67,7 +66,7 @@ public class AimAssist extends Module {
             ItemStack stack = mc.player.getMainHandStack();
             // Проверяем, что у предмета есть урон атаки > 1 (мечи, топоры)
             if (stack.isEmpty()) return;
-            
+
             // В 1.21.11 проверка урона может быть сложной, поэтому используем простую проверку по имени
             String name = stack.getItem().getName().getString().toLowerCase();
             if (!name.contains("sword") && !name.contains("axe") && !name.contains("меч") && !name.contains("топор") && !name.contains("mace")) {
