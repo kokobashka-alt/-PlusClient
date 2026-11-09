@@ -45,10 +45,9 @@ public class TargetPearl extends Module {
     private static final int MAX_SAFE_TARGETS = 4;
 
     private final ValueSetting distance = new ValueSetting(
-        "Мин. дистанция", "Минимальная дальность приземления", 10.0f)
-        .range(8.0f, 20.0f);
-    private final BooleanSetting ignoreFriends = new BooleanSetting(
-        "Игнорировать друзей", "Не повторять жемчуг друга").setValue(true);
+    "Мин. дистанция", "Минимальная дальность приземления")
+    .setValue(10.0f)
+    .range(8.0f, 20.0f);
 
     private long lastThrow;
     private long lastScan;
