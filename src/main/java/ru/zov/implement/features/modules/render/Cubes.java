@@ -75,7 +75,7 @@ public class Cubes extends Module {
     @EventHandler
     public void onTick(TickEvent e) {
         if (mc.player == null || mc.world == null) return;
-
+        
         // Обновляем частицы (каждые 2 тика для оптимизации)
         if (++updateCounter % 2 == 0) {
             updateCubes();
@@ -92,7 +92,7 @@ public class Cubes extends Module {
 
     private void updateCubes() {
         int targetCount = (int) count.getValue();
-
+        
         // Спавн новых
         if (cubes.size() < targetCount) {
             for (int i = 0; i < Math.min(targetCount - cubes.size(), 5); i++) {
@@ -150,10 +150,10 @@ public class Cubes extends Module {
         Vec3d camPos = camera.getCameraPos();
         // Only the rotation of the view matrix is used; the camera translation is applied per cube in double precision.
         Matrix4f viewRotation = new Matrix4f(Render3DUtil.lastViewMatrix).setTranslation(0.0F, 0.0F, 0.0F);
-
+        
         float baseSize = 0.18F * size.getValue();
         int themeColor = ColorUtil.getClientColor();
-
+        
         float r = ((themeColor >> 16) & 255) / 255.0F;
         float g = ((themeColor >> 8) & 255) / 255.0F;
         float b = (themeColor & 255) / 255.0F;
@@ -226,4 +226,94 @@ public class Cubes extends Module {
         buffer.vertex(matrix, -size, -size, -size).color(r, g, b, alpha);
         buffer.vertex(matrix, -size, -size, size).color(r, g, b, alpha);
         buffer.vertex(matrix, -size, size, size).color(r, g, b, alpha);
-        buffer.vertex(matrix, -size, size, -size).color(r, g, b
+        buffer.vertex(matrix, -size, size, -size).color(r, g, b, alpha);
+        // Правая
+        buffer.vertex(matrix, size, -size, size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, -size, -size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, size, -size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, size, size).color(r, g, b, alpha);
+        // Верхняя
+        buffer.vertex(matrix, -size, size, size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, size, size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, size, -size).color(r, g, b, alpha);
+        buffer.vertex(matrix, -size, size, -size).color(r, g, b, alpha);
+        // Нижняя
+        buffer.vertex(matrix, -size, -size, -size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, -size, -size).color(r, g, b, alpha);
+        buffer.vertex(matrix, size, -size, size).color(r, g, b, alpha);
+        buffer.vertex(matrix, -size, -size, size).color(r, g, b, alpha);
+    }
+
+    private void appendTriangleFaces(BufferBuilder buffer, Matrix4f matrix, float size, float r, float g, float b, float alpha) {
+        float f = -size;
+        float f2 = size * 0.866F;
+        // Верхушка и основание (упрощенно)
+        buffer.vertex(matrix, 0, size, 0).color(r, g, b, alpha);
+        buffer.vertex(matrix, -f2, f, f2).color(r, g, b, alpha);
+        buffer.vertex(matrix, f2, f, f2).color(r, g, b, alpha);
+
+        buffer.vertex(matrix, 0, size, 0).color(r, g, b, alpha);
+        buffer.vertex(matrix, f2, f, f2).color(r, g, b, alpha);
+        buffer.vertex(matrix, f2, f, -f2).color(r, g, b, alpha);
+
+        buffer.vertex(matrix, 0, size, 0).color(r, g, b, alpha);
+        buffer.vertex(matrix, f2, f, -f2).color(r, g, b, alpha);
+        buffer.vertex(matrix, -f2, f, -f2).color(r, g, b, alpha);
+
+        buffer.vertex(matrix, 0, size, 0).color(r, g, b, alpha);
+        buffer.vertex(matrix, -f2, f, -f2).color(r, g, b, alpha);
+        buffer.vertex(matrix, -f2, f, f2).color(r, g, b, alpha);
+    }
+
+    private CubeParticle spawnCube() {
+        boolean isFalling = animation.isSelected("Падение");
+        int life = isFalling ? 260 + random.nextInt(220) : 420 + random.nextInt(420);
+
+        double x = mc.player.getX() + (random.nextDouble() * 2.0 - 1.0) * SPAWN_RADIUS;
+        double y = mc.player.getY() + (isFalling ? 4.0 : 2.0) + random.nextDouble() * SPAWN_RADIUS * 0.8;
+        double z = mc.player.getZ() + (random.nextDouble() * 2.0 - 1.0) * SPAWN_RADIUS;
+
+        float spd = speed.getValue();
+        float vx, vy, vz;
+        if (isFalling) {
+            vx = (random.nextFloat() - 0.5F) * 0.008F * spd;
+            vy = (-0.012F - random.nextFloat() * 0.012F) * spd;
+            vz = (random.nextFloat() - 0.5F) * 0.008F * spd;
+        } else {
+            float angle = random.nextFloat() * 360.0F;
+            float speedVal = (0.01F + random.nextFloat() * 0.02F) * spd;
+            vx = -MathHelper.sin((float) Math.toRadians(angle)) * speedVal;
+            vz = MathHelper.cos((float) Math.toRadians(angle)) * speedVal;
+            vy = (random.nextFloat() - 0.5F) * 0.01F * spd;
+        }
+
+        return new CubeParticle(x, y, z, vx, vy, vz,
+                random.nextFloat() * 360.0F, random.nextFloat() * 360.0F, random.nextFloat() * 360.0F,
+                (random.nextFloat() - 0.5F) * 1.5F, (random.nextFloat() - 0.5F) * 1.5F, (random.nextFloat() - 0.5F) * 1.5F,
+                life, (float) (random.nextDouble() * Math.PI * 2.0), random.nextFloat() * 10.0F);
+    }
+
+    private static class CubeParticle {
+        double x, y, z;
+        float vx, vy, vz;
+        float rotX, rotY, rotZ;
+        float rotSpeedX, rotSpeedY, rotSpeedZ;
+        int life, maxLife;
+        float wobblePhase, wobbleOffset;
+        float renderAlpha;
+
+        public CubeParticle(double x, double y, double z, float vx, float vy, float vz,
+                            float rotX, float rotY, float rotZ,
+                            float rotSpeedX, float rotSpeedY, float rotSpeedZ,
+                            int life, float wobblePhase, float wobbleOffset) {
+            this.x = x; this.y = y; this.z = z;
+            this.vx = vx; this.vy = vy; this.vz = vz;
+            this.rotX = rotX; this.rotY = rotY; this.rotZ = rotZ;
+            this.rotSpeedX = rotSpeedX; this.rotSpeedY = rotSpeedY; this.rotSpeedZ = rotSpeedZ;
+            this.life = life;
+            this.maxLife = life;
+            this.wobblePhase = wobblePhase;
+            this.wobbleOffset = wobbleOffset;
+        }
+    }
+}
