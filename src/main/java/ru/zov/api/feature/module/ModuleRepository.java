@@ -70,6 +70,7 @@ import ru.zov.implement.features.modules.combat.SpearAura;
 import ru.zov.implement.features.modules.combat.CrystalAura;
 import ru.zov.implement.features.modules.render.PouchHud;
 import ru.zov.implement.features.modules.combat.AimAssist;
+import ru.zov.implement.features.modules.render.Cubes;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -143,7 +144,8 @@ public class ModuleRepository {
   new JumpCircle(),
    new CrystalAura(),
    new PouchHud(),
-   new AimAssist()
+   new AimAssist(),
+   new Cubes()
 );
    }
 
