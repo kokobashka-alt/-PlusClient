@@ -12,6 +12,7 @@ import ru.zov.common.util.render.Render2DUtil;
 import ru.zov.implement.events.container.OpenScreenEvent;
 import ru.zov.implement.events.packet.PacketEvent;
 import ru.zov.implement.features.modules.render.Hud;
+import ru.zov.implement.features.modules.render.PouchHud;
 
 public abstract class AbstractDraggable implements Draggable, QuickImports, QuickLogger {
    private String name;
@@ -172,6 +173,11 @@ public abstract class AbstractDraggable implements Draggable, QuickImports, Quic
    }
 
    public boolean canDraw(Hud hud, AbstractDraggable draggable) {
+      if (draggable.getName().startsWith("Pouch")) {
+         PouchHud pouchHud = PouchHud.getInstance();
+         return pouchHud != null && pouchHud.isState() && pouchHud.elements.isSelected(draggable.getName()) && this.visible();
+      }
+
       return hud.isState() && hud.interfaceSettings.isSelected(draggable.getName()) && this.visible();
    }
 
