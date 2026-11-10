@@ -21,7 +21,7 @@ import ru.zov.common.util.render.ScissorManager;
 import ru.zov.implement.features.modules.combat.Aura;
 import ru.zov.implement.features.modules.combat.TriggerBot;
 
-public class PouchTargetHud extends AbstractDraggable {
+public class PouchTargetInfo extends AbstractDraggable {
 
     private final Animation fadeAnim = new DecelerateAnimation().setMs(200).setValue(1.0);
     private LivingEntity lastTarget;
@@ -30,7 +30,7 @@ public class PouchTargetHud extends AbstractDraggable {
     private float animatedHealth;
     private float animatedTrailHealth;
 
-    public PouchTargetHud() {
+    public PouchTargetInfo() {
         super("PouchTargetHud", 140, 110, 120, 40, true);
     }
 
@@ -116,7 +116,11 @@ public class PouchTargetHud extends AbstractDraggable {
         // 3. Ник
         String name = drawTarget.getName().getString();
         float textX = headX + headSize + 6f;
-        font.drawStringWithFade(matrix, name, textX, y + 6f, width - headSize - 15f, ColorUtil.getText());
+        float nameMaxWidth = width - headSize - 15f;
+        while (name.length() > 1 && font.getStringWidth(name) > nameMaxWidth) {
+            name = name.substring(0, name.length() - 1);
+        }
+        font.drawString(matrix, name, textX, y + 6f, ColorUtil.getText());
 
         // 4. HP текст
         String hpText = String.format("%.1f", health);
@@ -167,7 +171,7 @@ public class PouchTargetHud extends AbstractDraggable {
 
         // Броня
         for (net.minecraft.entity.EquipmentSlot slot : net.minecraft.entity.EquipmentSlot.values()) {
-            if (slot.getType() == net.minecraft.entity.EquipmentSlot.Type.ARMOR) {
+            if (slot.getType() == net.minecraft.entity.EquipmentSlot.Type.HUMANOID_ARMOR) {
                 ItemStack stack = drawTarget.getEquippedStack(slot);
                 if (!stack.isEmpty()) {
                     context.drawItem(stack, (int)itemX, (int)itemY);

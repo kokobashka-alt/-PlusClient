@@ -152,7 +152,7 @@ public class PouchWatermark extends AbstractDraggable {
             notifyY += (12 + 2) * anim;
         }
 
-        this.setWidth(maxNotifyWidth);
-        this.setHeight(notifyY - y);
+        this.setWidth((int) maxNotifyWidth);
+        this.setHeight((int) (notifyY - y));
     }
 }

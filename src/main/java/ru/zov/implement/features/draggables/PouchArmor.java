@@ -9,13 +9,13 @@ import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 
-public class PouchArmorStatus extends AbstractDraggable {
+public class PouchArmor extends AbstractDraggable {
 
     private final EquipmentSlot[] slots = {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
 
-    public PouchArmorStatus() {
+    public PouchArmor() {
         super("PouchArmorStatus", 10, 150, 20, 100, true);
     }
 
@@ -65,7 +65,7 @@ public class PouchArmorStatus extends AbstractDraggable {
             }
             index++;
         }
-        this.setWidth(width);
-        this.setHeight(index * (height + gap));
+        this.setWidth((int) width);
+        this.setHeight((int) (index * (height + gap)));
     }
 }
