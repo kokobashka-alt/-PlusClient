@@ -1,71 +1,158 @@
 package ru.zov.implement.features.draggables;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
 import ru.zov.api.feature.draggable.AbstractDraggable;
+import ru.zov.api.feature.module.Module;
 import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.entity.PlayerIntersectionUtil;
 
-public class PouchArmorStatus extends AbstractDraggable {
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-    private final EquipmentSlot[] slots = {
-            EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
-    };
+public class PouchWatermark extends AbstractDraggable {
 
-    public PouchArmorStatus() {
-        super("PouchArmorStatus", 10, 150, 20, 100, true);
+    private final Map<Module, Long> appearAnimations = new HashMap<>();
+    private final Set<Module> activeModules = new HashSet<>();
+    private long lastRenderTime = System.currentTimeMillis();
+    private float previewAlpha = 0.0F;
+    private float currentMaxTextWidth = 0.0F;
+
+    public PouchWatermark() {
+        // Координаты: x=10, y=10 (как в оригинале)
+        super("PouchWatermark", 10, 10, 120, 16, true);
     }
 
     @Override
     public boolean visible() {
-        return mc.player != null;
+        return true; // Всегда видно
     }
 
     @Override
     public void drawDraggable(DrawContext context) {
+        if (mc.player == null) return;
+
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
         FontRenderer font = Fonts.getSize(13, Fonts.Type.DEFAULT);
+        FontRenderer iconFont = Fonts.getSize(14, Fonts.Type.DEFAULT);
 
-        float startX = this.getX();
-        float startY = this.getY();
-        float width = 20f;
-        float height = 20f;
-        float gap = 2f;
+        long time = System.currentTimeMillis();
+        float delta = (time - lastRenderTime) / 1000.0F;
+        lastRenderTime = time;
 
-        int index = 0;
-        for (EquipmentSlot slot : slots) {
-            ItemStack stack = mc.player.getEquippedStack(slot);
-            if (stack.isEmpty()) continue;
+        // Собираем активные модули (для уведомлений)
+        activeModules.clear();
+        List<Module> modules = main.getModuleProvider().getModules();
+        for (Module m : modules) {
+            if (m.isState()) activeModules.add(m);
+        }
 
-            float y = startY + index * (height + gap);
+        boolean isChat = PlayerIntersectionUtil.isChat(mc.currentScreen);
+        
+        // Если нет активных модулей и чат закрыт, но есть анимация — плавно скрываем
+        float targetAlpha = (isChat || !activeModules.isEmpty()) ? 1.0F : 0.0F;
+        previewAlpha += (targetAlpha - previewAlpha) * Math.min(1.0f, 8.0f * delta);
 
-            // Фон (черный с прозрачностью)
-            blur.render(ShapeProperties.create(matrix, startX, y, width, height)
+        if (previewAlpha < 0.01f && !isChat) {
+            this.setWidth(0);
+            this.setHeight(0);
+            return;
+        }
+
+        float x = this.getX();
+        float y = this.getY();
+        
+        // --- 1. ОСНОВНАЯ ПАНЕЛЬ (КАК НА СКРИНЕ) ---
+        String clientName = "Pouch"; // Имя клиента
+        String username = mc.player.getName().getString();
+        String fps = mc.getCurrentFps() + "fps";
+        String ping = "0ms";
+        if (mc.getNetworkHandler() != null) {
+            var entry = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
+            if (entry != null) ping = entry.getLatency() + "ms";
+        }
+
+        // Считаем ширину
+        String fullText = clientName + " | " + username + " | " + ping + " | " + fps;
+        float mainWidth = font.getStringWidth(fullText) + 20;
+        float mainHeight = 16f;
+
+        // Фон
+        blur.render(ShapeProperties.create(matrix, x, y, mainWidth, mainHeight)
+                .round(4.0F).softness(1.0F).thickness(2.0F)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
+
+        // Текст (градиент)
+        float currentX = x + 5;
+        font.drawGradientString(matrix, clientName, currentX, y + 5, ColorUtil.fade(0), ColorUtil.fade(100));
+        currentX += font.getStringWidth(clientName);
+
+        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
+        currentX += font.getStringWidth(" | ");
+
+        font.drawString(matrix, username, currentX, y + 5, ColorUtil.getText());
+        currentX += font.getStringWidth(username);
+
+        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
+        currentX += font.getStringWidth(" | ");
+
+        font.drawString(matrix, ping, currentX, y + 5, ColorUtil.getClientColor());
+        currentX += font.getStringWidth(ping);
+
+        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
+        currentX += font.getStringWidth(" | ");
+
+        font.drawString(matrix, fps, currentX, y + 5, ColorUtil.getClientColor());
+
+        // --- 2. УВЕДОМЛЕНИЯ (если модуль включен/выключен) ---
+        // В оригинале это отдельный стек. Мы сделаем его прямо под ватермаркой.
+        float notifyY = y + mainHeight + 2f;
+        float maxNotifyWidth = mainWidth;
+
+        // Анимация появления модулей
+        for (Module m : activeModules) {
+            appearAnimations.putIfAbsent(m, time);
+        }
+        appearAnimations.keySet().removeIf(m -> !activeModules.contains(m));
+
+        for (Map.Entry<Module, Long> entry : appearAnimations.entrySet()) {
+            Module m = entry.getKey();
+            long startTime = entry.getValue();
+            float life = (time - startTime) / 1000.0F;
+            
+            // Модуль висит 2.5 секунды, потом исчезает
+            if (life > 2.5f) continue;
+
+            float anim = Math.min(1.0f, life * 4.0f); // Плавное появление
+            if (life > 2.0f) {
+                anim = 1.0f - (life - 2.0f) * 2.0f; // Плавное исчезновение
+            }
+            if (anim <= 0.01f) continue;
+
+            String text = "\"" + m.getVisibleName() + "\" был включен";
+            float textWidth = font.getStringWidth(text) + 10;
+            maxNotifyWidth = Math.max(maxNotifyWidth, textWidth);
+
+            // Фон уведомления
+            blur.render(ShapeProperties.create(matrix, x, notifyY, textWidth, 12)
                     .round(3.0F).color(ColorUtil.getRect(0.7F)).build());
 
-            // Иконка предмета
-            context.drawItem(stack, (int)startX + 2, (int)y + 2);
+            // Иконка (зеленый кружок)
+            rectangle.render(ShapeProperties.create(matrix, x + 4, notifyY + 4, 4, 4)
+                    .round(2.0F).color(ColorUtil.getColor(80, 220, 80)).build());
 
-            // Прочность (полоска снизу)
-            if (stack.isDamageable()) {
-                float durability = 1.0f - (float)stack.getDamage() / stack.getMaxDamage();
-                int barColor = durability > 0.5f ? ColorUtil.getColor(80, 220, 80) : 
-                               durability > 0.25f ? ColorUtil.getColor(255, 220, 50) : 
-                               ColorUtil.getColor(220, 50, 50);
+            // Текст
+            font.drawString(matrix, text, x + 12, notifyY + 2, ColorUtil.getText());
 
-                // Фон полоски
-                rectangle.render(ShapeProperties.create(matrix, startX + 2, y + height - 2, width - 4, 1.5f)
-                        .color(ColorUtil.getRectDarker(0.5F)).build());
-                // Заполнение
-                rectangle.render(ShapeProperties.create(matrix, startX + 2, y + height - 2, (width - 4) * durability, 1.5f)
-                        .color(barColor).build());
-            }
-            index++;
+            notifyY += (12 + 2) * anim;
         }
-        this.setWidth(width);
-        this.setHeight(index * (height + gap));
+
+        this.setWidth(maxNotifyWidth);
+        this.setHeight(notifyY - y);
     }
 }
