@@ -1,112 +1,196 @@
 package ru.zov.implement.features.draggables;
 
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.MathHelper;
 
 import ru.zov.api.feature.draggable.AbstractDraggable;
+import ru.zov.api.system.animation.Animation;
+import ru.zov.api.system.animation.Direction;
+import ru.zov.api.system.animation.implement.DecelerateAnimation;
 import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
+import ru.zov.common.util.math.MathUtil;
 import ru.zov.common.util.render.Render2DUtil;
+import ru.zov.common.util.render.ScissorManager;
 import ru.zov.implement.features.modules.combat.Aura;
 import ru.zov.implement.features.modules.combat.TriggerBot;
 
-public class PouchTargetInfo extends AbstractDraggable {
+public class PouchTargetHud extends AbstractDraggable {
 
-    private final MinecraftClient mc = MinecraftClient.getInstance();
-
-    private LivingEntity target;
-    private LivingEntity lastTarget; // Запоминаем цель для чата
+    private final Animation fadeAnim = new DecelerateAnimation().setMs(200).setValue(1.0);
+    private LivingEntity lastTarget;
+    
+    // Анимации для полоски HP
     private float animatedHealth;
+    private float animatedTrailHealth;
 
-    public PouchTargetInfo() {
-        super("PouchTargetInfo", 140, 110, 130, 42, true); // Поставил x=140, y=110 (по центру)
+    public PouchTargetHud() {
+        super("PouchTargetHud", 140, 110, 120, 40, true);
+    }
+
+    @Override
+    public boolean visible() {
+        return lastTarget != null || PlayerIntersectionUtil.isChat(mc.currentScreen);
     }
 
     @Override
     public void tick() {
         LivingEntity auraTarget = Aura.getInstance().getTarget();
         LivingEntity triggerTarget = TriggerBot.getInstance().getTarget();
+        
+        LivingEntity currentTarget = auraTarget != null ? auraTarget : triggerTarget;
 
-        if (auraTarget != null && auraTarget.isAlive()) {
-            target = auraTarget;
-        } else if (triggerTarget != null && triggerTarget.isAlive()) {
-            target = triggerTarget;
+        if (currentTarget != null && currentTarget.isAlive()) {
+            lastTarget = currentTarget;
+            fadeAnim.setDirection(Direction.FORWARDS);
         } else {
-            target = null;
+            fadeAnim.setDirection(Direction.BACKWARDS);
         }
-
-        // Если цель есть, запоминаем её
-        if (target != null) {
-            lastTarget = target;
-            animatedHealth += (target.getHealth() - animatedHealth) * 0.2f;
-        }
-    }
-
-    @Override
-    public boolean visible() {
-        // Если открыт чат — показываем элемент, чтобы его можно было двигать
-        if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
-            return true;
-        }
-        return target != null;
     }
 
     @Override
     public void drawDraggable(DrawContext context) {
+        // Если открыт чат, показываем себя, чтобы можно было двигать
+        LivingEntity drawTarget = lastTarget;
+        if (drawTarget == null && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            drawTarget = mc.player;
+        }
+        if (drawTarget == null) return;
+
+        float anim = fadeAnim.getOutput().floatValue();
+        if (anim <= 0.05f) return;
+
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
         FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
         FontRenderer fontSmall = Fonts.getSize(13, Fonts.Type.DEFAULT);
 
-        // Если цель пропала (например, открыт чат), используем последнюю запомненную
-        LivingEntity drawTarget = target != null ? target : lastTarget;
-        if (drawTarget == null) return;
+        // Размеры панели
+        float width = 120f;
+        float height = 38f;
+        float x = this.getX();
+        float y = this.getY();
 
-        // Если открыт чат, рисуем "фейковую" цель (себя), чтобы можно было подвигать
-        if (target == null && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
-            drawTarget = mc.player;
+        // Данные цели
+        float maxHealth = Math.max(1.0f, drawTarget.getMaxHealth());
+        float health = drawTarget.getHealth();
+        float absorption = drawTarget.getAbsorptionAmount();
+        
+        // Плавная анимация HP
+        animatedHealth += (health - animatedHealth) * 0.15f;
+        if (animatedTrailHealth < animatedHealth) {
+            animatedTrailHealth = animatedHealth;
+        } else {
+            animatedTrailHealth += (animatedHealth - animatedTrailHealth) * 0.05f;
         }
 
-        float maxHealth = Math.max(1.0f, drawTarget.getMaxHealth());
-        float health = MathHelper.clamp(animatedHealth / maxHealth, 0.0f, 1.0f);
+        float healthPercent = MathHelper.clamp(animatedHealth / maxHealth, 0.0f, 1.0f);
+        float trailPercent = MathHelper.clamp(animatedTrailHealth / maxHealth, 0.0f, 1.0f);
 
-        // Фон с блюром
-        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), this.getHeight())
-                .round(5.0F).softness(1.0F).thickness(2.0F)
-                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
+        // --- ОТРИСОВКА ---
+        
+        // 1. Фон с блюром
+        blur.render(ShapeProperties.create(matrix, x, y, width, height)
+                .round(5.0f).softness(1.0f).thickness(2.0f)
+                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7f)).build());
 
-        // Иконка головы игрока (слева)
-        Render2DUtil.drawTexture(matrix, Render2DUtil.getHeadId(drawTarget), this.getX() + 5, this.getY() + 5, 32.0F, 3.0F, 1, 1, 8, ColorUtil.getRect(1.0F));
+        // 2. Голова игрока (слева)
+        float headSize = 30f;
+        float headX = x + 4f;
+        float headY = y + (height - headSize) / 2f;
+        
+        if (drawTarget instanceof PlayerEntity p) {
+            Render2DUtil.drawTexture(matrix, Render2DUtil.getHeadId(drawTarget), headX, headY, headSize, 3.0f, 1, 1, 8, ColorUtil.getRect(1.0f));
+        } else {
+            // Плейсхолдер для мобов (квадрат)
+            rectangle.render(ShapeProperties.create(matrix, headX, headY, headSize, headSize)
+                    .round(3.0f).color(ColorUtil.getRectDarker(0.5f)).build());
+            font.drawCenteredString(matrix, "?", headX + headSize / 2f, headY + 8f, ColorUtil.getText());
+        }
 
-        // Ник (справа от головы)
-        font.drawString(matrix, drawTarget.getName().getString(), this.getX() + 45, this.getY() + 8, ColorUtil.getText());
+        // 3. Ник
+        String name = drawTarget.getName().getString();
+        float textX = headX + headSize + 6f;
+        font.drawStringWithFade(matrix, name, textX, y + 6f, width - headSize - 15f, ColorUtil.getText());
 
-        // Хп текст (под ником)
-        String hpText = String.format("%.1f", drawTarget.getHealth());
-        fontSmall.drawString(matrix, "HP: " + hpText, this.getX() + 45, this.getY() + 21, ColorUtil.getText(0.7F));
+        // 4. HP текст
+        String hpText = String.format("%.1f", health);
+        float hpTextX = textX;
+        float hpTextY = y + 20f;
+        
+        fontSmall.drawString(matrix, "HP: ", hpTextX, hpTextY, ColorUtil.getText(0.7f));
+        fontSmall.drawString(matrix, hpText, hpTextX + fontSmall.getStringWidth("HP: "), hpTextY, ColorUtil.getText());
+        
+        // Золотые сердца (поглощение)
+        if (absorption > 0) {
+            String absText = " +" + String.format("%.1f", absorption);
+            float absX = hpTextX + fontSmall.getStringWidth("HP: " + hpText);
+            fontSmall.drawGradientString(matrix, absText, absX, hpTextY, ColorUtil.getColor(236, 183, 39), ColorUtil.getColor(147, 108, 16));
+        }
 
-        // Полоска HP (желто-фиолетовая, как на скрине)
-        float barWidth = 75.0F;
-        float barX = this.getX() + 45;
-        float barY = this.getY() + 32;
+        // 5. Полоска HP
+        float barWidth = width - headSize - 15f;
+        float barX = textX;
+        float barY = y + height - 8f;
+        float barHeight = 3.5f;
 
-        // Задний фон полоски
-        rectangle.render(ShapeProperties.create(matrix, barX, barY, barWidth, 4.0F)
-                .round(2.0F).color(ColorUtil.getRectDarker(0.5F)).build());
+        // Фон полоски (темный)
+        rectangle.render(ShapeProperties.create(matrix, barX, barY, barWidth, barHeight)
+                .round(1.5f).color(ColorUtil.getRectDarker(0.5f)).build());
 
-        // Заполнение полоски (цвет зависит от хп)
-        int healthColor = health > 0.6f ? ColorUtil.getColor(112, 220, 112) : // Зеленый
-                          health > 0.3f ? ColorUtil.getColor(255, 212, 92) :  // Желтый
-                          ColorUtil.getColor(255, 80, 80);                     // Красный
+        // Трейл (белая полоска, которая плавно исчезает при получении урона)
+        if (trailPercent > healthPercent) {
+            rectangle.render(ShapeProperties.create(matrix, barX, barY, barWidth * trailPercent, barHeight)
+                    .round(1.5f).color(ColorUtil.getColor(255, 255, 255, 100)).build());
+        }
 
-        rectangle.render(ShapeProperties.create(matrix, barX, barY, barWidth * health, 4.0F)
-                .round(2.0F).color(healthColor).build());
+        // Основная полоска (цвет зависит от HP)
+        int barColor = healthPercent > 0.6f ? ColorUtil.getColor(112, 220, 112) : // Зеленый
+                       healthPercent > 0.3f ? ColorUtil.getColor(255, 212, 92) :  // Желтый
+                       ColorUtil.getColor(255, 80, 80);                          // Красный
 
-        this.setWidth(130);
-        this.setHeight(42);
+        rectangle.render(ShapeProperties.create(matrix, barX, barY, barWidth * healthPercent, barHeight)
+                .round(1.5f).color(barColor).build());
+
+        // 6. Броня и предметы в руках (снизу)
+        float itemSize = 12f;
+        float itemY = y + height + 2f;
+        float itemX = x;
+        
+        ScissorManager scissor = main.getScissorManager();
+        scissor.push(matrix, x, itemY, width, itemSize + 2f);
+
+        // Броня
+        for (net.minecraft.entity.EquipmentSlot slot : net.minecraft.entity.EquipmentSlot.values()) {
+            if (slot.getType() == net.minecraft.entity.EquipmentSlot.Type.ARMOR) {
+                ItemStack stack = drawTarget.getEquippedStack(slot);
+                if (!stack.isEmpty()) {
+                    context.drawItem(stack, (int)itemX, (int)itemY);
+                    context.drawStackOverlay(mc.textRenderer, stack, (int)itemX, (int)itemY);
+                    itemX += itemSize + 2f;
+                }
+            }
+        }
+        
+        // Руки
+        ItemStack mainHand = drawTarget.getMainHandStack();
+        if (!mainHand.isEmpty()) {
+            context.drawItem(mainHand, (int)itemX, (int)itemY);
+            context.drawStackOverlay(mc.textRenderer, mainHand, (int)itemX, (int)itemY);
+            itemX += itemSize + 2f;
+        }
+        
+        ItemStack offHand = drawTarget.getOffHandStack();
+        if (!offHand.isEmpty()) {
+            context.drawItem(offHand, (int)itemX, (int)itemY);
+            context.drawStackOverlay(mc.textRenderer, offHand, (int)itemX, (int)itemY);
+        }
+
+        scissor.pop();
     }
 }
