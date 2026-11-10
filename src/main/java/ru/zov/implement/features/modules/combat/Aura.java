@@ -68,6 +68,9 @@ import ru.zov.implement.features.modules.combat.killaura.util.TargetSorters;
 import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.ShardAcAiRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.ShardAcRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.WhiteRiseRotationMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -152,6 +155,9 @@ public final class Aura extends Module {
     private final BezierRotationMode bezierRotationMode;
     private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
     private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
+    private final WhiteRiseRotationMode whiteRiseRotationMode = new WhiteRiseRotationMode();
+    private final ShardAcRotationMode shardAcRotationMode = new ShardAcRotationMode();
+    private final ShardAcAiRotationMode shardAcAiRotationMode = new ShardAcAiRotationMode();
     
     public int attackCooldown;
     public int sprintTicks;
@@ -654,6 +660,9 @@ public final class Aura extends Module {
             case BEZIER -> this.bezierRotationMode;
             case MLS -> this.mlsRotationMode;
             case NEURO -> this.neuroRotationMode;
+            case WHITERISE -> this.whiteRiseRotationMode;
+            case SHARD_AC -> this.shardAcRotationMode;
+            case SHARD_AC_AI -> this.shardAcAiRotationMode;
         };
     }
 
