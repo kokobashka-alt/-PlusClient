@@ -1,0 +1,43 @@
+
+name: Decompile Minecraft 1.16.5
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decompile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Download client
+        run: |
+          mkdir -p input
+          curl -L "https://www.mediafire.com/download/6v80rpqp414b0oq" -o input/1.16.5.jar
+
+      - name: Check file
+        run: file input/1.16.5.jar
+
+      - name: Decompile client
+        run: |
+          mkdir -p decompiled
+          java -Xmx4G -jar cfr-0.152.jar input/1.16.5.jar --outputdir decompiled
+
+      - name: Upload Decompiled Sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decompiled-1.16.5
+          path: decompiled/
+          compression-level: 6
+          
