@@ -13,7 +13,10 @@ public enum AuraRotationMode implements DisplayNamed {
     SLOTH_AC(Translation.clearText("SlothAC")),
     BEZIER(Translation.clearText("Bezier")),
     MLS(Translation.clearText("MLS")),
-    NEURO(Translation.clearText("Neuro"));
+    NEURO(Translation.clearText("Neuro")),
+    WHITERISE(Translation.clearText("WhiteRise")),
+    SHARD_AC(Translation.clearText("ShardAC")),
+    SHARD_AC_AI(Translation.clearText("ShardAC-AI"));
 
     public final Translation displayName;
 
