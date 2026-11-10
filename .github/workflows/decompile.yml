@@ -26,8 +26,13 @@ jobs:
           mkdir -p input
           curl -L "https://www.mediafire.com/download/6v80rpqp414b0oq" -o input/1.16.5.jar
 
-      - name: Check file
-        run: file input/1.16.5.jar
+
+      - name: Check downloaded file
+        run: |
+          ls -lh input/1.16.5.jar
+          file input/1.16.5.jar
+          head -c 100 input/1.16.5.jar
+          
 
       - name: Decompile client
         run: |
