@@ -16,7 +16,7 @@ public class PouchArmor extends AbstractDraggable {
     };
 
     public PouchArmor() {
-        super("PouchArmorStatus", 10, 150, 20, 100, true);
+        super("PouchArmor", 10, 150, 20, 100, true);
     }
 
     @Override
