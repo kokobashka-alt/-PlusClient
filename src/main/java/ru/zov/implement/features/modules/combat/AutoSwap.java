@@ -12,7 +12,10 @@ import ru.zov.api.feature.module.ModuleCategory;
 import ru.zov.api.feature.module.setting.implement.BindSetting;
 import ru.zov.api.feature.module.setting.implement.SelectSetting;
 import ru.zov.common.util.item.PlayerInventoryUtil;
+import ru.zov.common.util.math.MathUtil;
+import ru.zov.common.util.math.StopWatch;
 import ru.zov.implement.events.keyboard.KeyEvent;
+import ru.zov.implement.events.player.TickEvent;
 
 public class AutoSwap extends Module {
    private final BindSetting bind = new BindSetting("Item use key", "Uses item when pressed");
@@ -26,18 +29,45 @@ public class AutoSwap extends Module {
       this.setup(this.firstItem, this.secondItem, this.bind);
    }
 
+   private final StopWatch swapWatch = new StopWatch();
+   private int pendingTicks = -1;
+   private double swapGapMs = 0.0;
+
    @EventHandler
    public void onKey(KeyEvent e) {
-      if (mc.player != null && e.isKeyDown(this.bind)) {
-         Slot first = PlayerInventoryUtil.getSlot(
-            this.getItemByType(this.firstItem.getSelected()), Comparator.comparing(s -> s.getStack().hasEnchantments()), s -> s.id != 46 && s.id != 45
-         );
-         Slot second = PlayerInventoryUtil.getSlot(
-            this.getItemByType(this.secondItem.getSelected()), Comparator.comparing(s -> s.getStack().hasEnchantments()), s -> s.id != 46 && s.id != 45
-         );
-         Slot validSlot = first != null && !mc.player.getOffHandStack().isOf(first.getStack().getItem()) ? first : second;
-         PlayerInventoryUtil.swapHand(validSlot, Hand.OFF_HAND, true, true);
+      if (mc.player != null && e.isKeyDown(this.bind) && this.pendingTicks < 0 && this.swapWatch.finished(this.swapGapMs)) {
+         this.pendingTicks = MathUtil.getRandom(2, 4);
       }
+   }
+
+   @EventHandler
+   public void onTick(TickEvent e) {
+      if (this.pendingTicks < 0) {
+         return;
+      }
+      if (mc.player == null) {
+         this.pendingTicks = -1;
+         return;
+      }
+      if (this.pendingTicks > 0) {
+         this.pendingTicks--;
+         return;
+      }
+      this.pendingTicks = -1;
+      this.performSwap();
+      this.swapWatch.reset();
+      this.swapGapMs = MathUtil.getRandom(180.0, 320.0);
+   }
+
+   private void performSwap() {
+      Slot first = PlayerInventoryUtil.getSlot(
+         this.getItemByType(this.firstItem.getSelected()), Comparator.comparing(s -> s.getStack().hasEnchantments()), s -> s.id != 46 && s.id != 45
+      );
+      Slot second = PlayerInventoryUtil.getSlot(
+         this.getItemByType(this.secondItem.getSelected()), Comparator.comparing(s -> s.getStack().hasEnchantments()), s -> s.id != 46 && s.id != 45
+      );
+      Slot validSlot = first != null && !mc.player.getOffHandStack().isOf(first.getStack().getItem()) ? first : second;
+      PlayerInventoryUtil.swapHand(validSlot, Hand.OFF_HAND, true, true);
    }
 
    @Native
