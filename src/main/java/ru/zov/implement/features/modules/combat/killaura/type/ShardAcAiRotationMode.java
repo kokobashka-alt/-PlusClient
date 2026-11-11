@@ -48,14 +48,18 @@ public class ShardAcAiRotationMode extends RotationMode {
         if (entity == null) {
             this.trackedTarget = null;
             resetState();
-            float yawDelta = MathHelper.wrapDegrees(target.getYaw() - current.getYaw());
-            float pitchDelta = target.getPitch() - current.getPitch();
-            if (Math.abs(yawDelta) < 0.5F && Math.abs(pitchDelta) < 0.5F) {
-                return new Rotation(MathHelper.wrapDegrees(target.getYaw()), MathHelper.clamp(target.getPitch(), -89.0F, 89.0F));
+            Rotation back = current;
+            for (int i = 0; i < AspectRotationSupport.SUB_STEPS; i++) {
+                float yawDelta = MathHelper.wrapDegrees(target.getYaw() - back.getYaw());
+                float pitchDelta = target.getPitch() - back.getPitch();
+                if (Math.abs(yawDelta) < 0.5F && Math.abs(pitchDelta) < 0.5F) {
+                    return new Rotation(MathHelper.wrapDegrees(target.getYaw()), MathHelper.clamp(target.getPitch(), -89.0F, 89.0F));
+                }
+                back = new Rotation(
+                        MathHelper.wrapDegrees(back.getYaw() + yawDelta * 0.2F),
+                        MathHelper.clamp(back.getPitch() + pitchDelta * 0.2F, -89.0F, 89.0F));
             }
-            return new Rotation(
-                    MathHelper.wrapDegrees(current.getYaw() + yawDelta * 0.2F),
-                    MathHelper.clamp(current.getPitch() + pitchDelta * 0.2F, -89.0F, 89.0F));
+            return back;
         }
         if (this.trackedTarget != entity) {
             this.trackedTarget = entity;
@@ -69,6 +73,14 @@ public class ShardAcAiRotationMode extends RotationMode {
             this.acceleration = -0.04F;
         }
 
+        Rotation result = current;
+        for (int i = 0; i < AspectRotationSupport.SUB_STEPS; i++) {
+            result = step(result, target, entity, player);
+        }
+        return result;
+    }
+
+    private Rotation step(Rotation current, Rotation target, Entity entity, ClientPlayerEntity player) {
         float lastYaw = current.getYaw();
         float lastPitch = current.getPitch();
         float targetYaw = target.getYaw();

@@ -53,13 +53,21 @@ public class WhiteRiseRotationMode extends RotationMode {
             this.tickCounter = 0;
         }
 
+        boolean attackSoon = player.getAttackCooldownProgress(1.0F) > 0.9F && aura.canAttack(player, 1);
+        Rotation result = current;
+        for (int i = 0; i < AspectRotationSupport.SUB_STEPS; i++) {
+            result = step(result, target, player, attackSoon);
+        }
+        return result;
+    }
+
+    private Rotation step(Rotation current, Rotation target, ClientPlayerEntity player, boolean attackSoon) {
         this.tickCounter++;
         float jitter = (float) ((Math.sin(this.tickCounter * 0.17) * 0.12 + (Math.random() * 0.08 - 0.04)) * 0.7F);
         float lastYaw = current.getYaw();
         float lastPitch = current.getPitch();
         float yawToTarget = MathHelper.wrapDegrees(target.getYaw() - lastYaw);
         boolean gliding = player.isGliding();
-        boolean attackSoon = player.getAttackCooldownProgress(1.0F) > 0.9F && aura.canAttack(player, 1);
 
         if (!this.back) {
             float gain = 0.0055F;

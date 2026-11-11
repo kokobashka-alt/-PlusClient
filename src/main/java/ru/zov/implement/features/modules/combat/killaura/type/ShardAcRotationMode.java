@@ -67,6 +67,14 @@ public class ShardAcRotationMode extends RotationMode {
             this.acceleration = -0.04F;
         }
 
+        Rotation result = current;
+        for (int i = 0; i < AspectRotationSupport.SUB_STEPS; i++) {
+            result = step(result, target, entity, player);
+        }
+        return result;
+    }
+
+    private Rotation step(Rotation current, Rotation target, Entity entity, ClientPlayerEntity player) {
         float lastYaw = current.getYaw();
         float lastPitch = current.getPitch();
         float targetYaw = target.getYaw();

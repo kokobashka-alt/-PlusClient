@@ -9,6 +9,13 @@ import net.minecraft.util.math.Vec3d;
 final class AspectRotationSupport {
     private static final double LOOK_RAY_LENGTH = 1950.0;
 
+    /**
+     * Aspect ran these rotation updates from a 240 Hz loop (EventGameUpdate, one call per 4166666 ns);
+     * PlusClient calls RotationMode.process() once per client tick (20 Hz, RotationController.onTick),
+     * so each call advances the state this many times to keep the same speed.
+     */
+    static final int SUB_STEPS = 12;
+
     private AspectRotationSupport() {
     }
 
