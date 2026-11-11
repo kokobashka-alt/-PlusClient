@@ -54,6 +54,10 @@ import ru.zov.implement.features.modules.combat.killaura.event.RotationUpdateEve
 import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
 import ru.zov.implement.features.modules.combat.killaura.util.ServerUtil;
 import ru.zov.implement.features.modules.combat.killaura.type.SettingUnit;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.Perspective;
+import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.render.Render2DUtil;
 import ru.zov.implement.features.modules.combat.killaura.math.SimulatedPlayer;
 import ru.zov.implement.features.modules.combat.killaura.model.ScopedSlot;
 import ru.zov.implement.features.modules.combat.killaura.model.SlotSearchResult2;
@@ -125,6 +129,8 @@ public final class Aura extends Module {
     public final NumberSetting extraDistance;
     public final NumberSetting shardMinMinutes;
     public final NumberSetting shardMaxMinutes;
+    public final NumberSetting fovSize;
+    public final BooleanSetting drawFovCircle;
     public final NumberSetting maxDistance;
     public final BooleanSetting autoMace;
     public final NumberSetting autoMaceHeight;
@@ -224,6 +230,12 @@ public final class Aura extends Module {
         this.shardMaxMinutes = new NumberSetting(ru.zov.implement.features.modules.combat.killaura.model.Translation.clearText("Shard max minutes"))
                 .currentValue(9.0f).range(1.0f, 30.0f).step(1.0f)
                 .visible(() -> this.rotationMode.isSelected(AuraRotationMode.SHARD));
+        this.fovSize = new NumberSetting(ru.zov.implement.features.modules.combat.killaura.model.Translation.clearText("Size Fov"))
+                .currentValue(45.0f).range(5.0f, 180.0f).step(1.0f).unit(SettingUnit.DEGREES)
+                .visible(() -> this.rotationMode.isSelected(AuraRotationMode.FOV));
+        this.drawFovCircle = new BooleanSetting(ru.zov.implement.features.modules.combat.killaura.model.Translation.clearText("Draw Circle"))
+                .setValue(true)
+                .visible(() -> this.rotationMode.isSelected(AuraRotationMode.FOV));
         this.autoMace = new BooleanSetting(Lang.ATTACKAURA_AUTO_MACE, Lang.ATTACKAURA_AUTO_MACE_DESC).setValue(true);
         this.autoMaceHeight = new NumberSetting(
                         Lang.ATTACKAURA_AUTO_MACE_HEIGHT,
@@ -294,7 +306,7 @@ public final class Aura extends Module {
         this.visualSprintUntilAge = Integer.MIN_VALUE;
         this.visualSprintPose = EntityPose.STANDING;
         
-        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync, this.shardMinMinutes, this.shardMaxMinutes);
+        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync, this.shardMinMinutes, this.shardMaxMinutes, this.fovSize, this.drawFovCircle);
                 register(UseItemEvent.class, class059Var -> {
             if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
                 class059Var.cancel();
@@ -658,6 +670,68 @@ public final class Aura extends Module {
         return item.getUseAction(livingEntity.activeItemStack) == UseAction.BLOCK && item.getMaxUseTime(livingEntity.activeItemStack, livingEntity) - livingEntity.getItemUseTimeLeft() >= i;
     }
 
+    public boolean isFovMode() {
+        return this.rotationMode.isSelected(AuraRotationMode.FOV);
+    }
+
+    /** Angle between the player's look direction and the eye-to-hitbox-centre direction, against half of "Size Fov". */
+    private boolean isTargetWithinFov(LivingEntity entity, ClientPlayerEntity player) {
+        if (!isFovMode() || entity == null || player == null) {
+            return true;
+        }
+        Vec3d toTarget = entity.getBoundingBox().getCenter().subtract(player.getEyePos());
+        double length = toTarget.length();
+        if (length < 1.0E-4D) {
+            return true;
+        }
+        Vec3d look = RotationMath.INSTANCE.rotationToVector(Rotation.playerRotation()).normalize();
+        double cosAngle = look.dotProduct(toTarget.multiply(1.0D / length));
+        double halfFov = MathHelper.clamp(this.fovSize.currentValue() * 0.5F, 2.5F, 90.0F);
+        return cosAngle >= Math.cos(Math.toRadians(halfFov));
+    }
+
+    /** Screen-space radius of the FOV circle: tan(aim half-angle) / tan(game half-angle) of the smaller screen half. */
+    private float fovCircleRadius(MinecraftClient client, int width, int height) {
+        float maxRadius = Math.max(0.0f, Math.min(width, height) * 0.5f - 2.0f);
+        if (maxRadius <= 0.0f) {
+            return 0.0f;
+        }
+        double aimHalf = MathHelper.clamp(this.fovSize.currentValue() * 0.5F, 2.5F, 90.0F);
+        double gameFov = MathHelper.clamp((double) client.options.getFov().getValue(), 40.0D, 170.0D);
+        double gameHalf = MathHelper.clamp(gameFov * 0.5D, 1.0D, 89.9D);
+        if (aimHalf >= gameHalf) {
+            return maxRadius;
+        }
+        double radius = Math.tan(Math.toRadians(aimHalf)) / Math.tan(Math.toRadians(gameHalf)) * (Math.min(width, height) * 0.5D);
+        return (float) MathHelper.clamp(radius, 0.0D, maxRadius);
+    }
+
+    /** Called from InGameHudMixin before Render2DUtil flushes its queue. */
+    public void renderFovCircle() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!isState() || !isFovMode() || !this.drawFovCircle.isValue()
+                || client.player == null || client.world == null || client.currentScreen != null
+                || client.options.hudHidden || client.options.getPerspective() != Perspective.FIRST_PERSON) {
+            return;
+        }
+        int width = client.getWindow().getScaledWidth();
+        int height = client.getWindow().getScaledHeight();
+        float radius = fovCircleRadius(client, width, height);
+        if (radius < 1.0f) {
+            return;
+        }
+        int color = this.target != null ? ColorUtil.getColor(127, 242, 255, 165) : ColorUtil.getColor(255, 255, 255, 95);
+        float cx = width * 0.5f;
+        float cy = height * 0.5f;
+        int segments = 72;
+        for (int i = 0; i < segments; i++) {
+            double a1 = Math.PI * 2.0D * i / segments;
+            double a2 = Math.PI * 2.0D * (i + 1) / segments;
+            Render2DUtil.drawLine(cx + (float) Math.cos(a1) * radius, cy + (float) Math.sin(a1) * radius,
+                    cx + (float) Math.cos(a2) * radius, cy + (float) Math.sin(a2) * radius, 1.2f, color);
+        }
+    }
+
     public RotationMode getRotationMode() {
         return switch ((AuraRotationMode) this.rotationMode.currentValue()) {
             case FUNTIME -> this.funtimeRotationMode;
@@ -670,6 +744,7 @@ public final class Aura extends Module {
             case MLS -> this.mlsRotationMode;
             case NEURO -> this.neuroRotationMode;
             case SHARD -> this.shardRotationMode;
+            case FOV -> this.spookyTimeRotationMode;
         };
     }
 
@@ -689,7 +764,8 @@ public final class Aura extends Module {
             float targetDistance = maceDiveTargeting
                     ? getMaceAimDistance(clientPlayerEntity, this.target)
                     : fCurrentValue;
-            if (!this.hitPointResolver.hasValidPoint(this.target, targetDistance, this.ignoreWalls.isValue()) || dDotProduct <= dCos) {
+            if (!this.hitPointResolver.hasValidPoint(this.target, targetDistance, this.ignoreWalls.isValue()) || dDotProduct <= dCos
+                    || !isTargetWithinFov(this.target, clientPlayerEntity)) {
                 return null;
             }
             return this.target;
@@ -704,7 +780,8 @@ public final class Aura extends Module {
                     : isValidTarget(livingEntity2, clientPlayerEntity, fCurrentValue);
             if (class095Var.matches(livingEntity2)
                     && validForCurrentAttack
-                    && vec3dNormalize.dotProduct(livingEntity2.getEntityPos().subtract(clientPlayerEntity.getEntityPos()).normalize()) > Math.cos(Math.toRadians(180.0d))) {
+                    && vec3dNormalize.dotProduct(livingEntity2.getEntityPos().subtract(clientPlayerEntity.getEntityPos()).normalize()) > Math.cos(Math.toRadians(180.0d))
+                    && isTargetWithinFov(livingEntity2, clientPlayerEntity)) {
                 arrayList.add(livingEntity2);
             }
         }
