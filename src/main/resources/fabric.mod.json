@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "zov",
-  "version": "1.3",
-  "name": "zov",
-  "description": "Minecraft Modification",
+  "id": "PlusClient",
+  "version": "BetaTest",
+  "name": "plusclient",
+  "description": "best Minecraft client",
   "authors": [
-    "Fabos",
+    "Guho",
     "Pidor"
   ],
   "contact": {
-    "website": "https://zovclient.ru",
+    "website": "https://plusclient.ru",
     "repo": "none"
   },
   "license": "All-Rights-Reserved",
