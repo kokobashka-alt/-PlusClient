@@ -45,6 +45,10 @@ public abstract class InGameHudMixin implements QuickImports {
 public void onRender(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
     blur.setup();
     EventManager.callEvent(new DrawEvent(context));
+    ru.zov.implement.features.modules.combat.Aura fovAura = ru.zov.implement.features.modules.combat.Aura.getInstance();
+    if (fovAura != null) {
+        fovAura.renderFovCircle();
+    }
     Render2DUtil.onRender(context);
 
     if (!this.client.options.hudHidden && !(this.client.currentScreen instanceof ChatScreen)) {
