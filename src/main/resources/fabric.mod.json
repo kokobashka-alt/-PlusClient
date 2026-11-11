@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "PlusClient",
+  "id": "plusclient",
   "version": "BetaTest",
-  "name": "plusclient",
+  "name": "PlusClient",
   "description": "best Minecraft client",
   "authors": [
     "Guho",
@@ -33,4 +33,3 @@
       "file": "META-INF/jars/Java-WebSocket-1.5.3.jar"
     }
   ]
-}
