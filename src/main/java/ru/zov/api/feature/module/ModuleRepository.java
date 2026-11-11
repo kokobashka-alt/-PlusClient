@@ -71,6 +71,8 @@ import ru.zov.implement.features.modules.combat.CrystalAura;
 import ru.zov.implement.features.modules.render.PouchHud;
 import ru.zov.implement.features.modules.combat.AimAssist;
 import ru.zov.implement.features.modules.render.Cubes;
+import ru.zov.implement.features.modules.render.ViewModel;
+import ru.zov.implement.features.modules.render.TalismanIndication;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -145,7 +147,9 @@ public class ModuleRepository {
    new CrystalAura(),
    new PouchHud(),
    new AimAssist(),
-   new Cubes()
+   new Cubes(),
+   new ViewModel(),
+   new TalismanIndication()
 );
    }
 
