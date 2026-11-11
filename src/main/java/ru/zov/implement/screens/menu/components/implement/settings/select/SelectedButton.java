@@ -28,7 +28,7 @@ public class SelectedButton extends AbstractComponent {
 
    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
       org.joml.Matrix3x2fStack matrices = context.getMatrices();
-      this.alphaAnimation.setDirection(this.setting.getSelected().contains(this.text));
+      this.alphaAnimation.setDirection(this.setting.getSelected().equalsIgnoreCase(this.text));
       float opacity = this.alphaAnimation.getOutput().floatValue();
       int selectedOpacity = ColorUtil.multAlpha(ColorUtil.multAlpha(ColorUtil.getClientColor(), opacity), this.alpha);
       if (!this.alphaAnimation.isFinished(Direction.BACKWARDS)) {
@@ -49,10 +49,10 @@ public class SelectedButton extends AbstractComponent {
    public static Vector4f getRound(List<String> list, String text) {
       if (list.size() == 1) {
          return new Vector4f(4.0F);
-      } else if (((String)list.getLast()).contains(text)) {
+      } else if (((String)list.getLast()).equals(text)) {
          return new Vector4f(0.0F, 4.0F, 0.0F, 4.0F);
       } else {
-         return ((String)list.getFirst()).contains(text) ? new Vector4f(4.0F, 0.0F, 4.0F, 0.0F) : new Vector4f(0.0F);
+         return ((String)list.getFirst()).equals(text) ? new Vector4f(4.0F, 0.0F, 4.0F, 0.0F) : new Vector4f(0.0F);
       }
    }
 
