@@ -72,6 +72,7 @@ import ru.zov.implement.features.modules.render.PouchHud;
 import ru.zov.implement.features.modules.combat.AimAssist;
 import ru.zov.implement.features.modules.render.Cubes;
 import ru.zov.implement.features.modules.render.ViewModel;
+import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
 
 public class ModuleRepository {
@@ -149,7 +150,8 @@ public class ModuleRepository {
    new AimAssist(),
    new Cubes(),
    new ViewModel(),
-   new TalismanIndication()
+   new TalismanIndication(),
+   new SwingAnimations()
 );
    }
 
