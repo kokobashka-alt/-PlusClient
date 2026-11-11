@@ -68,7 +68,7 @@ import ru.zov.implement.features.modules.combat.killaura.util.TargetSorters;
 import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
-import ru.zov.implement.features.modules.combat.killaura.type.shard.ShardRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.ShardRotationMode;
 
 import java.util.ArrayList;
 import java.util.List;
