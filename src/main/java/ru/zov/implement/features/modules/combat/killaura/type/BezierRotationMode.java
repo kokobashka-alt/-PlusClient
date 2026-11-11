@@ -25,7 +25,7 @@ import ru.zov.implement.features.modules.combat.killaura.util.MathUtil;
  *
  * Untested against any anticheat: whether a given server flags it depends on checks that are not known here.
  */
-public class HumanRotationMode extends RotationMode {
+public class BezierRotationMode extends RotationMode {
     private static final int HISTORY = 8;
     private static final float PITCH_LIMIT = 89.0F;
     private static final float BLEND_PER_TICK = 0.12F;
@@ -88,7 +88,7 @@ public class HumanRotationMode extends RotationMode {
     private float driftYaw;
     private float driftPitch;
 
-    public HumanRotationMode() {
+    public BezierRotationMode() {
         super("Human");
     }
 
