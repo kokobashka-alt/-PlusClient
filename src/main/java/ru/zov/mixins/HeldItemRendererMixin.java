@@ -63,7 +63,7 @@ public abstract class HeldItemRendererMixin {
          return;
       }
 
-      HandAnimationEvent event = new HandAnimationEvent(matrices, hand, swingProgress);
+      HandAnimationEvent event = new HandAnimationEvent(matrices, hand, swingProgress, equipProgress);
       EventManager.callEvent(event);
 
       if (event.isCancelled()) {
