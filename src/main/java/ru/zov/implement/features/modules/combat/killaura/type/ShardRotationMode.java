@@ -1,4 +1,4 @@
-package ru.zov.implement.features.modules.combat.killaura.type.shard;
+package ru.zov.implement.features.modules.combat.killaura.type;
 
 import java.security.SecureRandom;
 import java.util.Locale;
