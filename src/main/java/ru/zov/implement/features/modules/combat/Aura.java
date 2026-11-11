@@ -68,9 +68,7 @@ import ru.zov.implement.features.modules.combat.killaura.util.TargetSorters;
 import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
-import ru.zov.implement.features.modules.combat.killaura.type.ShardAcAiRotationMode;
-import ru.zov.implement.features.modules.combat.killaura.type.ShardAcRotationMode;
-import ru.zov.implement.features.modules.combat.killaura.type.WhiteRiseRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.shard.ShardRotationMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -125,6 +123,8 @@ public final class Aura extends Module {
     public final ModeSetting<MoveCorrectionMode> moveCorrectionMode;
 
     public final NumberSetting extraDistance;
+    public final NumberSetting shardMinMinutes;
+    public final NumberSetting shardMaxMinutes;
     public final NumberSetting maxDistance;
     public final BooleanSetting autoMace;
     public final NumberSetting autoMaceHeight;
@@ -155,9 +155,7 @@ public final class Aura extends Module {
     private final BezierRotationMode bezierRotationMode;
     private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
     private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
-    private final WhiteRiseRotationMode whiteRiseRotationMode = new WhiteRiseRotationMode();
-    private final ShardAcRotationMode shardAcRotationMode = new ShardAcRotationMode();
-    private final ShardAcAiRotationMode shardAcAiRotationMode = new ShardAcAiRotationMode();
+    private final ShardRotationMode shardRotationMode = new ShardRotationMode();
     
     public int attackCooldown;
     public int sprintTicks;
@@ -220,6 +218,12 @@ public final class Aura extends Module {
         this.moveCorrectionMode = new ModeSetting(Lang.ATTACKAURA_MOVE_CORRECTION, Lang.ATTACKAURA_MOVE_CORRECTION_DESC).values(MoveCorrectionMode.class).select(MoveCorrectionMode.FREE);
         this.extraDistance = new NumberSetting(Lang.ATTACKAURA_EXTRA_DISTANCE, Lang.ATTACKAURA_EXTRA_DISTANCE_DESC).currentValue(0.0f).range(0.0f, 6.0f).step(0.05f).unit(SettingUnit.BLOCKS);
         this.maxDistance = new NumberSetting(Lang.ATTACKAURA_MAX_DISTANCE).currentValue(3.0f).range(1.0f, 6.0f).step(0.05f).unit(SettingUnit.BLOCKS);
+        this.shardMinMinutes = new NumberSetting(ru.zov.implement.features.modules.combat.killaura.model.Translation.clearText("Shard min minutes"))
+                .currentValue(3.0f).range(1.0f, 30.0f).step(1.0f)
+                .visible(() -> this.rotationMode.isSelected(AuraRotationMode.SHARD));
+        this.shardMaxMinutes = new NumberSetting(ru.zov.implement.features.modules.combat.killaura.model.Translation.clearText("Shard max minutes"))
+                .currentValue(9.0f).range(1.0f, 30.0f).step(1.0f)
+                .visible(() -> this.rotationMode.isSelected(AuraRotationMode.SHARD));
         this.autoMace = new BooleanSetting(Lang.ATTACKAURA_AUTO_MACE, Lang.ATTACKAURA_AUTO_MACE_DESC).setValue(true);
         this.autoMaceHeight = new NumberSetting(
                         Lang.ATTACKAURA_AUTO_MACE_HEIGHT,
@@ -290,7 +294,7 @@ public final class Aura extends Module {
         this.visualSprintUntilAge = Integer.MIN_VALUE;
         this.visualSprintPose = EntityPose.STANDING;
         
-        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync);
+        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync, this.shardMinMinutes, this.shardMaxMinutes);
                 register(UseItemEvent.class, class059Var -> {
             if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
                 class059Var.cancel();
@@ -399,6 +403,10 @@ public final class Aura extends Module {
         int i2;
         AuraRotationMode selectedMode = this.rotationMode.currentValue();
         if (selectedMode != this.observedRotationMode) {
+            if (selectedMode == AuraRotationMode.SHARD
+                    || this.observedRotationMode == AuraRotationMode.SHARD) {
+                this.shardRotationMode.reset();
+            }
             if (isSpookyTimeMode(selectedMode)
                     || isSpookyTimeMode(this.observedRotationMode)) {
                 this.spookyAimPoint = null;
@@ -630,6 +638,7 @@ public final class Aura extends Module {
         finishAuraRotationWithoutReturn(player, RotationManager.INSTANCE);
         RotationManager.INSTANCE.cancelTasksFor(this);
         this.auraRotationActive = false;
+        this.shardRotationMode.reset();
         clearMacePreparation(player, true);
         restoreMaxDamageItem(player);
         this.maceAttackedThisFall = false;
@@ -660,9 +669,7 @@ public final class Aura extends Module {
             case BEZIER -> this.bezierRotationMode;
             case MLS -> this.mlsRotationMode;
             case NEURO -> this.neuroRotationMode;
-            case WHITERISE -> this.whiteRiseRotationMode;
-            case SHARD_AC -> this.shardAcRotationMode;
-            case SHARD_AC_AI -> this.shardAcAiRotationMode;
+            case SHARD -> this.shardRotationMode;
         };
     }
 
