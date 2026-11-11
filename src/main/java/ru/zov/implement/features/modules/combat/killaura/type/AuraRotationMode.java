@@ -14,7 +14,8 @@ public enum AuraRotationMode implements DisplayNamed {
     BEZIER(Translation.clearText("Bezier")),
     MLS(Translation.clearText("MLS")),
     NEURO(Translation.clearText("Neuro")),
-    SHARD(Translation.clearText("Shard"));
+    SHARD(Translation.clearText("Shard")),
+    FOV(Translation.clearText("Fov"));
 
     public final Translation displayName;
 
