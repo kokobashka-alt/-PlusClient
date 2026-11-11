@@ -42,6 +42,8 @@ public class ClickAction extends Module {
    private final StopWatch stopWatch = new StopWatch();
    private final StopWatch itemWatch = new StopWatch();
    private final Script script = new Script();
+   private KeyBind pendingBind;
+   private int pendingTicks;
 
    public ClickAction() {
       super("ClickAction", "Click Action", ModuleCategory.MISC);
@@ -77,7 +79,12 @@ public class ClickAction extends Module {
          }
       }
 
-      this.keyBindings.stream().filter(bind -> e.isKeyReleased(bind.setting)).forEach(this::swapAndUse);
+      this.keyBindings.stream().filter(bind -> e.isKeyReleased(bind.setting)).findFirst().ifPresent(bind -> {
+         if (this.pendingBind == null) {
+            this.pendingBind = bind;
+            this.pendingTicks = MathUtil.getRandom(1, 3);
+         }
+      });
    }
 
    @EventHandler
@@ -99,6 +106,18 @@ public class ClickAction extends Module {
    @EventHandler
    @Native
    public void onTick(TickEvent e) {
+      if (this.pendingBind != null) {
+         if (this.pendingTicks > 0) {
+            this.pendingTicks--;
+         } else {
+            KeyBind bind = this.pendingBind;
+            this.pendingBind = null;
+            if (!PlayerIntersectionUtil.nullCheck()) {
+               this.swapAndUse(bind);
+            }
+         }
+      }
+
       if (PlayerIntersectionUtil.isKey(this.expBind)) {
          Slot slot = PlayerInventoryUtil.getSlot(Items.EXPERIENCE_BOTTLE);
          if (slot == null) {
