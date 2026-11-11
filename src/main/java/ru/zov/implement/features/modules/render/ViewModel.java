@@ -1,7 +1,6 @@
 package ru.zov.implement.features.modules.render;
 
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import ru.zov.api.event.EventHandler;
 import ru.zov.api.feature.module.Module;
@@ -31,9 +30,8 @@ public class ViewModel extends Module {
          return;
       }
 
-      Arm arm = e.hand() == Hand.MAIN_HAND ? mc.player.getMainArm() : mc.player.getMainArm().getOpposite();
       MatrixStack matrices = e.matrices();
-      if (arm == Arm.RIGHT) {
+      if (e.hand() == Hand.MAIN_HAND) {
          matrices.translate(this.rightHandX.getValue(), this.rightHandY.getValue(), this.rightHandZ.getValue());
       } else {
          matrices.translate(this.leftHandX.getValue(), this.leftHandY.getValue(), this.leftHandZ.getValue());
