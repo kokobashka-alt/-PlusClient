@@ -74,6 +74,9 @@ import ru.zov.implement.features.modules.render.Cubes;
 import ru.zov.implement.features.modules.render.ViewModel;
 import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
+import ru.zov.implement.features.modules.render.Ambience;
+import ru.zov.implement.features.modules.render.Atmosphere;
+
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -151,7 +154,9 @@ public class ModuleRepository {
    new Cubes(),
    new ViewModel(),
    new TalismanIndication(),
-   new SwingAnimations()
+   new SwingAnimations(),
+   new Ambience(),
+   new Atmosphere()
 );
    }
 
