@@ -23,6 +23,9 @@ public class PouchHud extends Module {
             "PouchTargetInfo",
             "PouchArmor",
             "PouchCooldowns"
+    ).selected(
+            "PouchTargetInfo",
+            "PouchArmor"
     );
 
     public PouchHud() {
