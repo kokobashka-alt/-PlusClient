@@ -1,5 +1,13 @@
 package ru.zov.api.feature.draggable;
 
+import ru.zov.implement.features.draggables.celestial.CelestialWatermark;
+import ru.zov.implement.features.draggables.celestial.CelestialArrayList;
+import ru.zov.implement.features.draggables.celestial.CelestialKeybinds;
+import ru.zov.implement.features.draggables.celestial.CelestialCooldowns;
+import ru.zov.implement.features.draggables.celestial.CelestialPotions;
+import ru.zov.implement.features.draggables.celestial.CelestialStaff;
+import ru.zov.implement.features.draggables.celestial.CelestialTarget;
+
 import java.util.ArrayList;
 import java.util.List;
 import ru.nexusguard.protection.annotations.Native;
@@ -54,7 +62,14 @@ public class DraggableRepository {
     new PouchStaffList(),
     new PouchTargetInfo(),
     new PouchArmor(),
-    new PouchCooldowns()
+    new PouchCooldowns(),
+    new CelestialWatermark(),
+    new CelestialArrayList(),
+    new CelestialKeybinds(),
+    new CelestialCooldowns(),
+    new CelestialPotions(),
+    new CelestialStaff(),
+    new CelestialTarget()
 );
    }
 
