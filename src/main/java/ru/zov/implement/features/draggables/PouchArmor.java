@@ -8,6 +8,7 @@ import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
+import ru.zov.common.util.entity.PlayerIntersectionUtil;
 
 public class PouchArmor extends AbstractDraggable {
 
@@ -64,6 +65,16 @@ public class PouchArmor extends AbstractDraggable {
                         .color(barColor).build());
             }
             index++;
+        }
+        if (index == 0) {
+            // Nothing equipped: keep a one-slot hitbox, and show an empty plate in chat so the element can be placed.
+            if (PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+                blur.render(ShapeProperties.create(matrix, startX, startY, width, height)
+                        .round(3.0F).color(ColorUtil.getRect(0.7F)).build());
+            }
+            this.setWidth((int) width);
+            this.setHeight((int) height);
+            return;
         }
         this.setWidth((int) width);
         this.setHeight((int) (index * (height + gap)));

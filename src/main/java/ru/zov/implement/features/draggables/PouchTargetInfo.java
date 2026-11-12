@@ -64,6 +64,9 @@ public class PouchTargetInfo extends AbstractDraggable {
         if (currentTarget != null && currentTarget.isAlive()) {
             lastTarget = currentTarget;
             fadeAnim.setDirection(Direction.FORWARDS);
+        } else if (mc.player != null && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
+            lastTarget = mc.player;
+            fadeAnim.setDirection(Direction.FORWARDS);
         } else {
             fadeAnim.setDirection(Direction.BACKWARDS);
         }
