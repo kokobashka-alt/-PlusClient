@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   fonts:
@@ -15,12 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create fonts directory
+      - name: Create fonts
         run: |
           mkdir -p fonts
-
-      - name: Copy font assets
-        run: |
           cp custom-icons.png fonts/
           cp custom-icons.json fonts/
           cp energy.png fonts/
@@ -32,9 +29,11 @@ jobs:
           cp icons3.png fonts/
           cp icons3.json fonts/
 
-      - name: Upload fonts
-        uses: actions/upload-artifact@v4
-        with:
-          name: fonts
-          path: fonts/
+      - name: Commit fonts folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fonts/
+          git commit -m "Add fonts folder" || exit 0
+          git push
           
