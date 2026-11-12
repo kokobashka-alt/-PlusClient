@@ -22,6 +22,7 @@ import ru.zov.implement.events.render.PlayerLoadEvent;
 import ru.zov.implement.features.draggables.MiniMap;
 import ru.zov.implement.features.draggables.Notifications;
 import ru.zov.implement.features.modules.render.Hud;
+import ru.zov.implement.features.modules.render.CelestialHud;
 import ru.zov.implement.features.modules.render.PouchHud;
 
 public class EventListener implements Listener, QuickImports {
@@ -41,6 +42,7 @@ public void onTick(TickEvent e) {
 
     Hud hud = Hud.getInstance();
     PouchHud pouchHud = PouchHud.getInstance();
+    CelestialHud celestialHud = CelestialHud.getInstance();
 
     for (AbstractDraggable draggable : main.getDraggableRepository().draggable()) {
         boolean selected = hud.isState()
@@ -50,7 +52,11 @@ public void onTick(TickEvent e) {
                 && pouchHud.isState()
                 && pouchHud.elements.isSelected(draggable.getName());
 
-        if (draggable instanceof Notifications || selected || pouchSelected) {
+        boolean celestialSelected = celestialHud != null
+                && celestialHud.isState()
+                && celestialHud.elements.isSelected(draggable.getName());
+
+        if (draggable instanceof Notifications || selected || pouchSelected || celestialSelected) {
             draggable.tick();
         }
     }
