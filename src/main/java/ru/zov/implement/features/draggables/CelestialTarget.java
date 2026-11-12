@@ -18,12 +18,38 @@ public class CelestialTarget extends CelestialDraggable {
    private float hpShown = 1.0F;
    private float hpTrail = 1.0F;
 
+   private boolean placed;
+
    public CelestialTarget() {
-      super("CelestialTarget", (int) (window.getScaledWidth() * 0.348F), (int) (window.getScaledHeight() * 0.22F), 132, 46);
+      // QuickImports must not be touched in the constructor (runs before the render system exists); see ensurePlaced().
+      super("CelestialTarget", 0, 0, 132, 46);
+   }
+
+   @Override
+   public void setX(int x) {
+      super.setX(x);
+      this.placed = true;
+   }
+
+   @Override
+   public void setY(int y) {
+      super.setY(y);
+      this.placed = true;
+   }
+
+   private void ensurePlaced() {
+      if (this.placed) {
+         return;
+      }
+
+      this.placed = true;
+      super.setX((int) (window.getScaledWidth() * 0.348F));
+      super.setY((int) (window.getScaledHeight() * 0.22F));
    }
 
    @Override
    public boolean visible() {
+      this.ensurePlaced();
       return this.isLingering() || this.previewWanted();
    }
 

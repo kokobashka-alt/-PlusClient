@@ -45,11 +45,40 @@ public abstract class CelestialListPanel extends CelestialDraggable {
    }
 
    private final String title;
+   private final float xRatio;
+   private final float yRatio;
    private final Map<String, Slot> slots = new LinkedHashMap<>();
+   private boolean placed;
 
    protected CelestialListPanel(String name, String title, float xRatio, float yRatio) {
-      super(name, (int) (window.getScaledWidth() * xRatio), (int) (window.getScaledHeight() * yRatio), (int) PANEL_W, (int) HEAD);
+      // QuickImports (window, tessellator, ...) must not be touched here: constructors run in the main entrypoint,
+      // before the render system exists. The default position is resolved on the first frame instead.
+      super(name, 0, 0, (int) PANEL_W, (int) HEAD);
       this.title = title;
+      this.xRatio = xRatio;
+      this.yRatio = yRatio;
+   }
+
+   @Override
+   public void setX(int x) {
+      super.setX(x);
+      this.placed = true;
+   }
+
+   @Override
+   public void setY(int y) {
+      super.setY(y);
+      this.placed = true;
+   }
+
+   private void ensurePlaced() {
+      if (this.placed) {
+         return;
+      }
+
+      this.placed = true;
+      super.setX((int) (window.getScaledWidth() * this.xRatio));
+      super.setY((int) (window.getScaledHeight() * this.yRatio));
    }
 
    protected abstract Row preview();
@@ -58,6 +87,7 @@ public abstract class CelestialListPanel extends CelestialDraggable {
 
    @Override
    public boolean visible() {
+      this.ensurePlaced();
       return mc.player != null && mc.world != null && (!this.slots.isEmpty() || PlayerIntersectionUtil.isChat(mc.currentScreen));
    }
 
@@ -94,6 +124,7 @@ public abstract class CelestialListPanel extends CelestialDraggable {
          return;
       }
 
+      this.ensurePlaced();
       this.clock();
       for (Iterator<Slot> it = this.slots.values().iterator(); it.hasNext(); ) {
          Slot slot = it.next();
