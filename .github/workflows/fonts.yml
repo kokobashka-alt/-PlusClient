@@ -1,0 +1,40 @@
+
+name: Create Fonts Folder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fonts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create fonts directory
+        run: |
+          mkdir -p fonts
+
+      - name: Copy font assets
+        run: |
+          cp custom-icons.png fonts/
+          cp custom-icons.json fonts/
+          cp energy.png fonts/
+          cp energy.json fonts/
+          cp glyphter.png fonts/
+          cp glyphter.json fonts/
+          cp mediumsui.png fonts/
+          cp mediumsui.json fonts/
+          cp icons3.png fonts/
+          cp icons3.json fonts/
+
+      - name: Upload fonts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fonts
+          path: fonts/
+          
