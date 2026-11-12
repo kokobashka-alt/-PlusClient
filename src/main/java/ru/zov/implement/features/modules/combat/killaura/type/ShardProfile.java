@@ -8,7 +8,9 @@ import java.util.Random;
  * (1 tick = 50 ms), speeds are degrees per tick.
  *
  * Every numeric value in {@link #CATALOG} is an UNCALIBRATED starting point chosen from general
- * human-aiming ranges. None of them was measured against the Shard anticheat. Speed pass: faster reaction, peak speed and omega, noise/overshoot/pause terms unchanged.
+ * human-aiming ranges. None of them was measured against the Shard anticheat. Speed pass 2: shorter reaction, higher peak speed and omega, and higher accLimit/jerkLimit (the
+ * real bottleneck: large turns are acceleration-limited, the peak is never reached). Noise,
+ * drift, overshoot and pause terms and all clamp ranges are unchanged.
  *
  * The compact constructor clamps everything into a safe range, so {@link #lerp} and {@link #mutate}
  * can never produce an unstable or non-finite profile.
@@ -67,32 +69,32 @@ public record ShardProfile(
     }
 
     public static final ShardProfile SMOOTH_TRACKER = new ShardProfile("SmoothTracker",
-            3, 5, 28, 9, 0.34F, 1.00F, 5.0F, 1.40F, 0.75F,
+            2, 4, 32, 10, 0.38F, 1.00F, 7.5F, 3.60F, 0.75F,
             0.05F, 0.60F, 0.55F, 0.35F, 0.06F,
             0.10F, 0.06F, 18, 0.015F, 2, 4, 0.05F, 0.45F, 0.88F);
 
     public static final ShardProfile FLICKER = new ShardProfile("Flicker",
-            2, 4, 44, 13, 0.48F, 0.85F, 8.5F, 2.60F, 0.80F,
+            1.5F, 3, 48, 14, 0.52F, 0.85F, 12.0F, 5.00F, 0.80F,
             0.07F, 0.50F, 0.45F, 0.30F, 0.09F,
             0.22F, 0.08F, 14, 0.020F, 2, 3, 0.04F, 0.35F, 0.92F);
 
     public static final ShardProfile LAZY_DRIFT = new ShardProfile("LazyDrift",
-            4, 7, 21, 6.5F, 0.25F, 1.05F, 3.2F, 0.90F, 0.60F,
+            3, 5.5F, 24, 7.5F, 0.29F, 1.05F, 5.0F, 2.40F, 0.60F,
             0.09F, 0.75F, 1.00F, 0.70F, 0.04F,
             0.06F, 0.05F, 20, 0.045F, 3, 6, 0.08F, 0.55F, 0.75F);
 
     public static final ShardProfile OVERSHOOTER = new ShardProfile("Overshooter",
-            3, 5, 36, 11, 0.42F, 0.62F, 7.2F, 2.10F, 0.70F,
+            2, 4, 40, 12, 0.46F, 0.62F, 10.5F, 4.80F, 0.70F,
             0.06F, 0.55F, 0.60F, 0.40F, 0.07F,
             0.50F, 0.14F, 10, 0.020F, 2, 4, 0.06F, 0.40F, 0.85F);
 
     public static final ShardProfile SURGICAL = new ShardProfile("Surgical",
-            4, 6, 40, 12, 0.56F, 0.95F, 9.5F, 3.00F, 0.90F,
+            3, 5, 44, 13, 0.60F, 0.95F, 10.5F, 5.00F, 0.90F,
             0.03F, 0.40F, 0.22F, 0.16F, 0.12F,
             0.08F, 0.04F, 16, 0.008F, 2, 3, 0.02F, 0.30F, 0.95F);
 
     public static final ShardProfile ARC_MOVER = new ShardProfile("ArcMover",
-            3, 5, 31, 10, 0.39F, 0.90F, 6.0F, 1.70F, 0.85F,
+            2, 4, 35, 11, 0.43F, 0.90F, 9.0F, 4.20F, 0.85F,
             0.06F, 0.65F, 0.70F, 0.50F, 0.06F,
             0.15F, 0.09F, 15, 0.025F, 2, 4, 0.16F, 0.40F, 0.88F);
 
