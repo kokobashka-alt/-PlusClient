@@ -69,6 +69,8 @@ import ru.zov.implement.features.modules.render.JumpCircle;
 import ru.zov.implement.features.modules.combat.SpearAura;
 import ru.zov.implement.features.modules.combat.CrystalAura;
 import ru.zov.implement.features.modules.render.PouchHud;
+import ru.zov.implement.features.modules.render.CelestialHud;
+import ru.zov.implement.features.modules.render.Esp2D;
 import ru.zov.implement.features.modules.combat.AimAssist;
 import ru.zov.implement.features.modules.render.Cubes;
 import ru.zov.implement.features.modules.render.ViewModel;
@@ -150,6 +152,8 @@ public class ModuleRepository {
   new JumpCircle(),
    new CrystalAura(),
    new PouchHud(),
+   new CelestialHud(),
+   new Esp2D(),
    new AimAssist(),
    new Cubes(),
    new ViewModel(),
