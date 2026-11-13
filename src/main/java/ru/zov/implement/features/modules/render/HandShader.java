@@ -9,12 +9,11 @@ import ru.zov.api.feature.module.ModuleCategory;
 import ru.zov.api.feature.module.setting.implement.BooleanSetting;
 import ru.zov.api.feature.module.setting.implement.SelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
-import ru.zov.common.util.render.HandShaderRenderer;
 
 /**
  * Огненно-дымный шлейф вокруг рук/предмета от первого лица.
  * Порт модуля HandShader (Wyvern → sky.core): захват рук в текстуру + feedback-шлейф + kawase-размытие.
- * Рендер — в {@link HandShaderRenderer}; настройки повторяют референс.
+ * Рендерер (HandShaderRenderer) в репозитории отсутствует: модуль пока только хранит настройки и нигде не зарегистрирован.
  * Отличия от референса: нет цвета темы (в базе нет ThemeManager) — вместо него фиксированный фиолетовый.
  */
 public final class HandShader extends Module {
@@ -63,16 +62,6 @@ public final class HandShader extends Module {
          this.trailFade, this.trailSoftness, this.trailBlur, this.handSoftness, this.handBlur, this.smoke,
          this.itemColor
       );
-   }
-
-   @Override
-   public void activate() {
-      HandShaderRenderer.getInstance().setEnabled(true);
-   }
-
-   @Override
-   public void deactivate() {
-      HandShaderRenderer.getInstance().setEnabled(false);
    }
 
    public boolean isPretty() {
