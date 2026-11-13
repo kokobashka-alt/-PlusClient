@@ -1,23 +1,22 @@
-package com.javelinhud.ui;
+package ru.zov.implement.features.draggables;
 
-import com.javelinhud.ui.elements.*;
-import net.minecraft.client.gui.ScaledResolution;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JavelinHUD {
-    private final JavelinWatermark javelinWatermark = new JavelinWatermark();
-    private final JavelinInfo javelinInfo = new JavelinInfo();
-    private final JavelinHotkeys javelinHotkeys = new JavelinHotkeys();
-    private final JavelinPotions javelinPotions = new JavelinPotions();
-    private final JavelinTargetHUD javelinTargetHUD = new JavelinTargetHUD();
+    
+    private final List<AbstractDraggable> javelinModules = new ArrayList<>();
 
-    public void render(ScaledResolution sr) {
-        javelinWatermark.draw(10, 10);
-        javelinInfo.draw(10, 32);
-        
-        javelinHotkeys.draw(10, 60);
-        javelinPotions.draw(140, 60);
-        
-        // Пример вызова таргет-худа (передавай цель из киллауры)
-        // javelinTargetHUD.draw(sr.getScaledWidth() / 2 - 65, sr.getScaledHeight() / 2 + 20, target);
+    public JavelinHUD() {
+        // Регистрация всех твоих модулей
+        javelinModules.add(new JavelinWatermarkDraggable());
+        javelinModules.add(new JavelinInfoDraggable());
+        javelinModules.add(new JavelinHotkeysDraggable());
+        javelinModules.add(new JavelinPotionsDraggable());
+        javelinModules.add(new JavelinTargetHudDraggable());
+    }
+
+    public List<AbstractDraggable> getModules() {
+        return javelinModules;
     }
 }
