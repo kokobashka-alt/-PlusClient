@@ -78,7 +78,7 @@ import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
 import ru.zov.implement.features.modules.render.Ambience;
 import ru.zov.implement.features.modules.render.Atmosphere;
-import ru.zov.implement.features.modules.render.JavelinHUD;
+import ru.zov.implement.features.draggables.JavelinHUD;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
