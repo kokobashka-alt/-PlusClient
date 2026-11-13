@@ -23,8 +23,6 @@ import ru.zov.api.feature.module.Module;
 import ru.zov.api.feature.module.ModuleCategory;
 import ru.zov.api.feature.module.setting.implement.MultiSelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
-import ru.zov.api.system.font.FontRenderer;
-import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.math.ProjectionUtil;
@@ -35,6 +33,9 @@ import ru.zov.implement.events.render.DrawEvent;
 public class Esp2D extends Module {
    private static final int OUTLINE = 0xB4000000;
    private static final float HEALTH_TEXT_RANGE_SQ = 900.0F;
+   private static final float TAG_SCALE = 0.8F;
+   private static final float SMALL_SCALE = 0.7F;
+   private static final int TEXT_COLOR = 0xFFFFFFFF;
    private static final EquipmentSlot[] ARMOR_SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
 
    private final MultiSelectSetting targets = new MultiSelectSetting("Выбор целей", "Какие сущности показывать")
@@ -101,8 +102,6 @@ public class Esp2D extends Module {
 
       DrawContext context = e.context();
       Matrix3x2fStack m = context.getMatrices();
-      FontRenderer font = Fonts.getSize(12, Fonts.Type.DEFAULT);
-      FontRenderer small = Fonts.getSize(9, Fonts.Type.DEFAULT);
       int c0 = ColorUtil.fade(0);
       int c1 = ColorUtil.fade(90);
       int c2 = ColorUtil.fade(180);
@@ -133,8 +132,8 @@ public class Esp2D extends Module {
 
          if (this.display.isSelected("Неймтег")) {
             tag = this.buildTag(entity);
-            tagHeight = font.getStringHeight(tag) + 2.0F;
-            tagWidth = font.getStringWidth(tag) + 2.0F;
+            tagHeight = this.textHeight(TAG_SCALE) + 2.0F;
+            tagWidth = this.textWidth(tag, TAG_SCALE) + 2.0F;
             tagX = x1 + w / 2.0F - tagWidth / 2.0F - 1.0F;
             tagTop = y1 - tagHeight - 1.5F;
          }
@@ -145,11 +144,11 @@ public class Esp2D extends Module {
 
          if (tag != null) {
             blur.render(ShapeProperties.create(m, tagX, tagTop, tagWidth, tagHeight).round(1.0F).color(OUTLINE).build());
-            font.drawText(m, tag, tagX + 1.0F, tagTop + 1.5F);
+            this.drawText(context, tag, tagX + 1.0F, tagTop + 1.0F, TAG_SCALE);
          }
 
          if (this.display.isSelected("Предмет")) {
-            this.drawItemNames(m, entity, small, x1 + w / 2.0F, y2);
+            this.drawItemNames(context, entity, x1 + w / 2.0F, y2);
          }
 
          if (this.display.isSelected("Броню")) {
@@ -157,11 +156,11 @@ public class Esp2D extends Module {
          }
 
          if (this.display.isSelected("Эффекты")) {
-            this.drawEffects(m, entity, Fonts.getSize(10, Fonts.Type.DEFAULT), x2 + 2.0F, y1 + 1.0F);
+            this.drawEffects(context, entity, x2 + 2.0F, y1 + 1.0F);
          }
 
          if (this.display.isSelected("Здоровье")) {
-            this.drawHealthBar(m, entity, small, x1 - t - 1.5F, y1, t, h, c0, c3);
+            this.drawHealthBar(context, m, entity, x1 - t - 1.5F, y1, t, h, c0, c3);
          }
       }
    }
@@ -184,6 +183,23 @@ public class Esp2D extends Module {
       return text;
    }
 
+   private float textWidth(Text text, float scale) {
+      return mc.textRenderer.getWidth(text) * scale;
+   }
+
+   private float textHeight(float scale) {
+      return mc.textRenderer.fontHeight * scale;
+   }
+
+   private void drawText(DrawContext context, Text text, float x, float y, float scale) {
+      Matrix3x2fStack m = context.getMatrices();
+      m.pushMatrix();
+      m.translate(x, y);
+      m.scale(scale, scale);
+      context.drawText(mc.textRenderer, text, 0, 0, TEXT_COLOR, true);
+      m.popMatrix();
+   }
+
    private void bar(Matrix3x2fStack m, float x, float y, float w, float h, int tl, int bl, int br, int tr) {
       rectangle.render(ShapeProperties.create(m, x, y, w, h).round(0.0F).color(tl, bl, br, tr).build());
    }
@@ -203,7 +219,7 @@ public class Esp2D extends Module {
       this.bar(m, x2 - t, y1, t, h, c1, c2, c2, c1);
    }
 
-   private void drawHealthBar(Matrix3x2fStack m, LivingEntity entity, FontRenderer font, float x, float y, float w, float h, int top, int bottom) {
+   private void drawHealthBar(DrawContext context, Matrix3x2fStack m, LivingEntity entity, float x, float y, float w, float h, int top, int bottom) {
       float frac = Math.max(0.0F, Math.min(1.0F, entity.getHealth() / Math.max(1.0F, entity.getMaxHealth())));
       float fillHeight = h * frac;
       float fillTop = y + h - fillHeight;
@@ -214,11 +230,11 @@ public class Esp2D extends Module {
       boolean near = entity == mc.player || mc.player.squaredDistanceTo(entity) < HEALTH_TEXT_RANGE_SQ;
       if (hurt && near) {
          Text percent = Text.literal(Math.round(frac * 100.0F) + "%");
-         font.drawText(m, percent, x + w / 2.0F - font.getStringWidth(percent) / 2.0F, fillTop - font.getStringHeight(percent) - 1.0F);
+         this.drawText(context, percent, x + w / 2.0F - this.textWidth(percent, SMALL_SCALE) / 2.0F, fillTop - this.textHeight(SMALL_SCALE) - 1.0F, SMALL_SCALE);
       }
    }
 
-   private void drawItemNames(Matrix3x2fStack m, LivingEntity entity, FontRenderer font, float centerX, float bottom) {
+   private void drawItemNames(DrawContext context, LivingEntity entity, float centerX, float bottom) {
       float y = bottom + 3.0F;
       for (EquipmentSlot slot : EquipmentSlot.values()) {
          ItemStack stack = entity.getEquippedStack(slot);
@@ -231,8 +247,8 @@ public class Esp2D extends Module {
             text.append(Text.literal(" x" + stack.getCount()).formatted(Formatting.RED));
          }
 
-         font.drawText(m, text, centerX - font.getStringWidth(text) / 2.0F, y);
-         y += font.getStringHeight(text) + 1.0F;
+         this.drawText(context, text, centerX - this.textWidth(text, SMALL_SCALE) / 2.0F, y, SMALL_SCALE);
+         y += this.textHeight(SMALL_SCALE) + 1.0F;
       }
    }
 
@@ -267,14 +283,14 @@ public class Esp2D extends Module {
       }
    }
 
-   private void drawEffects(Matrix3x2fStack m, LivingEntity entity, FontRenderer font, float x, float y) {
+   private void drawEffects(DrawContext context, LivingEntity entity, float x, float y) {
       for (StatusEffectInstance effect : entity.getStatusEffects()) {
          String name = effect.getEffectType().value().getName().getString();
          String level = effect.getAmplifier() > 0 ? " " + (effect.getAmplifier() + 1) : "";
          String time = effect.isInfinite() ? "**:**" : (effect.getDuration() / 20 / 60) + ":" + String.format("%02d", effect.getDuration() / 20 % 60);
          Text line = Text.literal(name + level + " " + time);
-         font.drawText(m, line, x, y);
-         y += font.getStringHeight(line) + 1.0F;
+         this.drawText(context, line, x, y, SMALL_SCALE);
+         y += this.textHeight(SMALL_SCALE) + 1.0F;
       }
    }
 }
