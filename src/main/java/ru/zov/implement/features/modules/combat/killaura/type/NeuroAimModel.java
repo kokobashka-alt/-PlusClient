@@ -5,303 +5,368 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Procedural model of a human aiming hand. Degrees and client ticks (20 Hz), no Minecraft types.
- * It is not a trained network: there is no recorded human data in the project, so every constant
- * below is an uncalibrated assumption that has to be tuned against the target server.
- *
- * Movement is a sum of minimum-jerk submovements. A ballistic submovement with Fitts-law duration
- * and signal-dependent endpoint noise goes first, then intermittent corrective submovements fire
- * after a feedback delay once the perceived error leaves a deadband. The target is perceived with a
- * latency and led by a partial velocity prediction. Reaction time, perception lag, speed and noise
- * are re-rolled per target, so repeated fights do not produce the same trajectory.
- */
 public final class NeuroAimModel {
-   public record Input(float yaw, float pitch, float aimYaw, float aimPitch, boolean engaged, boolean newTarget, boolean hit) {
-   }
 
-   public record Output(float yaw, float pitch) {
-   }
+    // === Входные параметры ===
+    public record Input(float yaw, float pitch,
+                        float aimYaw, float aimPitch,
+                        float targetHeadYaw, float targetHeadPitch,
+                        float targetChestYaw, float targetChestPitch,
+                        float targetFeetYaw, float targetFeetPitch,
+                        boolean engaged, boolean newTarget, boolean hit) {}
 
-   private static final int HISTORY = 4;
-   private static final float PEAK_STEP = 24.0F;
-   private static final float MAX_STEP = 40.0F;
-   private static final float BALLISTIC_MIN = 4.0F;
-   private static final float RETARGET_MIN = 8.0F;
-   private static final float TRACK_CONTINUOUS = 2.0F;
-   private static final float YAW_DEADBAND = 0.35F;
-   private static final float PITCH_DEADBAND = 0.6F;
-   private static final float RETURN_FINISH = 0.4F;
-   private static final float PITCH_NOISE_RATIO = 1.25F;
+    public record Output(float yaw, float pitch) {}
 
-   private static final class Sub {
-      final float ay;
-      final float ap;
-      final int duration;
-      int age;
+    // === Константы ===
+    private static final int HISTORY = 4;
+    private static final float PEAK_STEP = 24.0F;
+    private static final float MAX_STEP = 40.0F;
+    private static final float BALLISTIC_MIN = 4.0F;
+    private static final float RETARGET_MIN = 8.0F;
+    private static final float TRACK_CONTINUOUS = 2.0F;
+    private static final float YAW_DEADBAND = 0.35F;
+    private static final float PITCH_DEADBAND = 0.6F;
+    private static final float RETURN_FINISH = 0.4F;
+    private static final float PITCH_NOISE_RATIO = 1.25F;
 
-      Sub(float ay, float ap, int duration) {
-         this.ay = ay;
-         this.ap = ap;
-         this.duration = duration;
-      }
-   }
+    // === Состояние ===
+    private final Random rnd;
+    private final List<Sub> subs = new ArrayList<>(4);
+    private final float[] histYaw = new float[HISTORY];
+    private final float[] histPitch = new float[HISTORY];
+    private int histCount;
+    private int waitTicks;
+    private int holdTicks;
+    private int sinceStart = 99;
+    private boolean wasEngaged;
 
-   private final Random rnd;
-   private final List<Sub> subs = new ArrayList<>(4);
-   private final float[] histYaw = new float[HISTORY];
-   private final float[] histPitch = new float[HISTORY];
-   private int histCount;
-   private int waitTicks;
-   private int holdTicks;
-   private int sinceStart = 99;
-   private boolean wasEngaged;
-   private float driftYaw;
-   private float driftPitch;
-   private float speedScale = 1.0F;
-   private float noiseScale = 1.0F;
-   private int latency = 1;
-   private float predictionGain = 0.5F;
+    // Мультипоинт
+    private int pointIndex;             // 0=head, 1=chest, 2=feet
+    private int pointSwitchCooldown;    // тиков до возможности сменить
+    private float wanderYaw, wanderPitch;   // медленный дрейф вокруг точки
+    private float wanderVelYaw, wanderVelPitch;
+    private float microJitter;          // шум текущего тика
 
-   public NeuroAimModel(long seed) {
-      this.rnd = new Random(seed);
-   }
+    // «Персональные» параметры
+    private float driftYaw, driftPitch;
+    private float speedScale = 1.0F;
+    private float noiseScale = 1.0F;
+    private int latency = 1;
+    private float predictionGain = 0.5F;
 
-   public void reset() {
-      this.subs.clear();
-      this.histCount = 0;
-      this.waitTicks = 0;
-      this.holdTicks = 0;
-      this.sinceStart = 99;
-      this.wasEngaged = false;
-      this.driftYaw = 0.0F;
-      this.driftPitch = 0.0F;
-   }
+    // Фиксация после удара
+    private int focusHoldTicks;
 
-   public Output step(Input in) {
-      if (!finite(in.yaw()) || !finite(in.pitch()) || !finite(in.aimYaw()) || !finite(in.aimPitch())) {
-         return new Output(in.yaw(), in.pitch());
-      }
+    private static final class Sub {
+        final float ay;
+        final float ap;
+        final int duration;
+        int age;
 
-      boolean engaged = in.engaged();
-      if (engaged != this.wasEngaged || in.newTarget()) {
-         this.beginPhase(in, engaged);
-      }
+        Sub(float ay, float ap, int duration) {
+            this.ay = ay;
+            this.ap = ap;
+            this.duration = duration;
+        }
+    }
 
-      this.wasEngaged = engaged;
-      this.push(in.aimYaw(), in.aimPitch());
-      this.sinceStart++;
-      if (this.waitTicks > 0) {
-         this.waitTicks--;
-      }
+    public NeuroAimModel(long seed) {
+        this.rnd = new Random(seed);
+    }
 
-      if (this.holdTicks > 0) {
-         this.holdTicks--;
-      }
+    public void reset() {
+        subs.clear();
+        histCount = 0;
+        waitTicks = 0;
+        holdTicks = 0;
+        sinceStart = 99;
+        wasEngaged = false;
+        driftYaw = 0f;
+        driftPitch = 0f;
+        wanderYaw = 0f;
+        wanderPitch = 0f;
+        wanderVelYaw = 0f;
+        wanderVelPitch = 0f;
+        pointIndex = 0;
+        pointSwitchCooldown = 0;
+        focusHoldTicks = 0;
+    }
 
-      if (in.hit() && engaged) {
-         this.onHit();
-      }
+    public Output step(Input in) {
+        if (!finite(in.yaw()) || !finite(in.pitch())
+                || !finite(in.aimYaw()) || !finite(in.aimPitch())) {
+            return new Output(in.yaw(), in.pitch());
+        }
 
-      if (this.waitTicks == 0) {
-         this.plan(in, engaged);
-      }
+        boolean engaged = in.engaged();
+        if (engaged != wasEngaged || in.newTarget()) {
+            beginPhase(in, engaged);
+        }
+        wasEngaged = engaged;
+        push(in.aimYaw(), in.aimPitch());
+        sinceStart++;
 
-      float dy = 0.0F;
-      float dp = 0.0F;
-      Iterator<Sub> it = this.subs.iterator();
-      while (it.hasNext()) {
-         Sub s = it.next();
-         float from = smooth((float)s.age / (float)s.duration);
-         s.age++;
-         float to = smooth((float)s.age / (float)s.duration);
-         dy += s.ay * (to - from);
-         dp += s.ap * (to - from);
-         if (s.age >= s.duration) {
-            it.remove();
-         }
-      }
+        if (waitTicks > 0) waitTicks--;
+        if (holdTicks > 0) holdTicks--;
+        if (pointSwitchCooldown > 0) pointSwitchCooldown--;
+        if (focusHoldTicks > 0) focusHoldTicks--;
 
-      if (engaged) {
-         float oldY = this.driftYaw;
-         float oldP = this.driftPitch;
-         this.driftYaw = this.driftYaw * 0.85F + gauss(0.025F * this.noiseScale);
-         this.driftPitch = this.driftPitch * 0.85F + gauss(0.02F * this.noiseScale);
-         dy += this.driftYaw - oldY + gauss(0.01F);
-         dp += this.driftPitch - oldP + gauss(0.008F);
-      }
+        // Выбор точки прицеливания (мультипоинт)
+        updatePoint(in, engaged);
 
-      dy = clamp(dy, -MAX_STEP, MAX_STEP);
-      dp = clamp(dp, -MAX_STEP, MAX_STEP);
-      return new Output(in.yaw() + dy, clamp(in.pitch() + dp, -90.0F, 90.0F));
-   }
+        // Смешанная «накопленная» точка = выбранная точка + wander + microjitter
+        float aimYaw = pickPointYaw(in);
+        float aimPitch = pickPointPitch(in);
 
-   private void beginPhase(Input in, boolean engaged) {
-      float err = (float)Math.hypot(wrap(in.aimYaw() - in.yaw()), in.aimPitch() - in.pitch());
-      this.histCount = 0;
-      this.holdTicks = 0;
-      if (engaged) {
-         this.rerollPersonality();
-         this.waitTicks = err < 2.5F ? 0 : this.reaction(2.5F);
-      } else {
-         this.waitTicks = this.reaction(3.0F);
-      }
-   }
+        if (in.hit() && engaged) onHit();
+        if (waitTicks == 0) plan(in, engaged, aimYaw, aimPitch);
 
-   private void rerollPersonality() {
-      this.speedScale = (float)Math.exp(0.6 * Math.log(this.speedScale) + 0.4 * 0.10 * this.rnd.nextGaussian());
-      this.noiseScale = (float)Math.exp(0.6 * Math.log(this.noiseScale) + 0.4 * 0.25 * this.rnd.nextGaussian());
-      this.speedScale = clamp(this.speedScale, 0.8F, 1.25F);
-      this.noiseScale = clamp(this.noiseScale, 0.6F, 1.8F);
-      this.latency = this.rnd.nextFloat() < 0.7F ? 1 : 2;
-      this.predictionGain = 0.6F + 0.3F * this.rnd.nextFloat();
-   }
+        float dy = 0f, dp = 0f;
+        Iterator<Sub> it = subs.iterator();
+        while (it.hasNext()) {
+            Sub s = it.next();
+            float from = smooth((float) s.age / s.duration);
+            s.age++;
+            float to = smooth((float) s.age / s.duration);
+            dy += s.ay * (to - from);
+            dp += s.ap * (to - from);
+            if (s.age >= s.duration) it.remove();
+        }
 
-   private int reaction(float medianTicks) {
-      float v = medianTicks * (float)Math.exp(0.35 * this.rnd.nextGaussian());
-      return Math.max(1, Math.min(7, Math.round(v)));
-   }
+        // Персональный дрейф + wander
+        if (engaged) {
+            float oldY = driftYaw, oldP = driftPitch;
+            driftYaw = driftYaw * 0.85f + gauss(0.025f * noiseScale);
+            driftPitch = driftPitch * 0.85f + gauss(0.02f * noiseScale);
+            wanderYaw += wanderVelYaw;
+            wanderPitch += wanderVelPitch;
+            wanderVelYaw = wanderVelYaw * 0.92f + gauss(0.006f * noiseScale);
+            wanderVelPitch = wanderVelPitch * 0.92f + gauss(0.005f * noiseScale);
+            wanderYaw = clamp(wanderYaw, -1.5f, 1.5f);
+            wanderPitch = clamp(wanderPitch, -1.0f, 1.0f);
 
-   private void onHit() {
-      if (this.rnd.nextFloat() < 0.45F) {
-         this.subs.add(new Sub(gauss(0.25F * this.noiseScale), gauss(0.2F * this.noiseScale), 2));
-      }
+            // Микро-дрожь в текущем тике
+            microJitter = gauss(0.012f * noiseScale);
 
-      this.holdTicks = Math.max(this.holdTicks, 1 + this.rnd.nextInt(2));
-   }
+            dy += (driftYaw - oldY) + wanderVelYaw + microJitter;
+            dp += (driftPitch - oldP) + wanderVelPitch + microJitter * 0.8f;
 
-   private void push(float aimYaw, float aimPitch) {
-      if (this.histCount == 0) {
-         for (int i = 0; i < HISTORY; i++) {
-            this.histYaw[i] = aimYaw;
-            this.histPitch[i] = aimPitch;
-         }
+            // Фиксация после удара: гасим шум
+            if (focusHoldTicks > 0) {
+                dy *= 0.55f;
+                dp *= 0.55f;
+            }
+        }
 
-         this.histCount = HISTORY;
-         return;
-      }
+        dy = clamp(dy, -MAX_STEP, MAX_STEP);
+        dp = clamp(dp, -MAX_STEP, MAX_STEP);
+        return new Output(in.yaw() + dy, clamp(in.pitch() + dp, -90f, 90f));
+    }
 
-      for (int i = HISTORY - 1; i > 0; i--) {
-         this.histYaw[i] = this.histYaw[i - 1];
-         this.histPitch[i] = this.histPitch[i - 1];
-      }
+    // ===== Мультипоинт =====
+    private void updatePoint(Input in, boolean engaged) {
+        if (!engaged) { pointIndex = 0; return; }
+        if (pointSwitchCooldown > 0) return;
 
-      this.histYaw[0] = aimYaw;
-      this.histPitch[0] = aimPitch;
-   }
+        // Смена точки: при получении урона — в голову, иначе случайно среди head/chest/feet
+        // «Умный» выбор: если ошибка большая (dist > 20) — всегда head, чтобы быстрее навестись
+        float distHead = (float) Math.hypot(wrap(in.targetHeadYaw() - in.yaw()),
+                in.targetHeadPitch() - in.pitch());
 
-   private void plan(Input in, boolean engaged) {
-      float remY = 0.0F;
-      float remP = 0.0F;
-      for (Sub s : this.subs) {
-         float rest = 1.0F - smooth((float)s.age / (float)s.duration);
-         remY += s.ay * rest;
-         remP += s.ap * rest;
-      }
+        if (distHead > 20f) {
+            pointIndex = 0;
+        } else if (in.hit()) {
+            // после удара остаёмся на текущей точке
+        } else if (rnd.nextFloat() < 0.06f) {
+            // с вероятностью 6% на тик меняем точку
+            pointIndex = rnd.nextInt(3);
+        }
+        pointSwitchCooldown = 8 + rnd.nextInt(12);
+    }
 
-      int lag = engaged ? Math.min(this.latency, this.histCount - 1) : 0;
-      float velY = 0.0F;
-      float velP = 0.0F;
-      if (engaged) {
-         velY = clamp(wrap(this.histYaw[0] - this.histYaw[1]), -8.0F, 8.0F);
-         velP = clamp(this.histPitch[0] - this.histPitch[1], -4.0F, 4.0F);
-      }
+    private float pickPointYaw(Input in) {
+        return switch (pointIndex) {
+            case 1 -> in.targetChestYaw();
+            case 2 -> in.targetFeetYaw();
+            default -> in.targetHeadYaw();
+        };
+    }
 
-      float horizon = lag + 2.0F;
-      float errY = wrap(this.histYaw[lag] + this.predictionGain * velY * horizon - (in.yaw() + remY));
-      float errP = this.histPitch[lag] + this.predictionGain * velP * horizon - (in.pitch() + remP);
-      float dist = (float)Math.hypot(errY, errP);
-      boolean busy = !this.subs.isEmpty();
+    private float pickPointPitch(Input in) {
+        return switch (pointIndex) {
+            case 1 -> in.targetChestPitch();
+            case 2 -> in.targetFeetPitch();
+            default -> in.targetHeadPitch();
+        };
+    }
 
-      if (dist >= BALLISTIC_MIN) {
-         if (!busy || dist >= RETARGET_MIN && this.sinceStart >= 2) {
-            this.startBallistic(errY, errP, dist, engaged);
-         }
+    // ===== Реакция и планирование =====
+    private void beginPhase(Input in, boolean engaged) {
+        float err = (float) Math.hypot(wrap(in.aimYaw() - in.yaw()),
+                in.aimPitch() - in.pitch());
+        histCount = 0;
+        holdTicks = 0;
+        pointSwitchCooldown = 0;
+        if (engaged) {
+            rerollPersonality();
+            waitTicks = err < 2.5f ? 0 : reaction(2.5f);
+        } else {
+            waitTicks = reaction(3.0f);
+        }
+    }
 
-         return;
-      }
+    private void rerollPersonality() {
+        speedScale = (float) Math.exp(0.6 * Math.log(speedScale) + 0.4 * 0.10 * rnd.nextGaussian());
+        noiseScale = (float) Math.exp(0.6 * Math.log(noiseScale) + 0.4 * 0.25 * rnd.nextGaussian());
+        speedScale = clamp(speedScale, 0.8f, 1.25f);
+        noiseScale = clamp(noiseScale, 0.6f, 1.8f);
+        latency = rnd.nextFloat() < 0.7f ? 1 : 2;
+        predictionGain = 0.6f + 0.3f * rnd.nextFloat();
+    }
 
-      boolean overlap = engaged && dist >= TRACK_CONTINUOUS && this.sinceStart >= 2;
-      if (!overlap && (busy || this.holdTicks > 0)) {
-         return;
-      }
+    private int reaction(float medianTicks) {
+        float v = medianTicks * (float) Math.exp(0.35 * rnd.nextGaussian());
+        return Math.max(1, Math.min(7, Math.round(v)));
+    }
 
-      if (!engaged) {
-         if (dist > 0.02F) {
-            this.subs.add(new Sub(errY, errP, dist < RETURN_FINISH ? 2 : 3));
-            this.sinceStart = 0;
-         }
+    private void onHit() {
+        if (rnd.nextFloat() < 0.45f) {
+            subs.add(new Sub(gauss(0.25f * noiseScale), gauss(0.2f * noiseScale), 2));
+        }
+        focusHoldTicks = 2 + rnd.nextInt(2); // 2–3 тика фиксации
+        holdTicks = Math.max(holdTicks, 1 + rnd.nextInt(2));
+    }
 
-         return;
-      }
+    private void push(float aimYaw, float aimPitch) {
+        if (histCount == 0) {
+            for (int i = 0; i < HISTORY; i++) {
+                histYaw[i] = aimYaw;
+                histPitch[i] = aimPitch;
+            }
+            histCount = HISTORY;
+            return;
+        }
+        for (int i = HISTORY - 1; i > 0; i--) {
+            histYaw[i] = histYaw[i - 1];
+            histPitch[i] = histPitch[i - 1];
+        }
+        histYaw[0] = aimYaw;
+        histPitch[0] = aimPitch;
+    }
 
-      float db = this.noiseScale;
-      if (Math.abs(errY) > YAW_DEADBAND * db || Math.abs(errP) > PITCH_DEADBAND * db) {
-         this.startCorrection(errY, errP, dist);
-      }
-   }
+    private void plan(Input in, boolean engaged, float aimYaw, float aimPitch) {
+        float remY = 0f, remP = 0f;
+        for (Sub s : subs) {
+            float rest = 1f - smooth((float) s.age / s.duration);
+            remY += s.ay * rest;
+            remP += s.ap * rest;
+        }
 
-   private void startBallistic(float errY, float errP, float dist, boolean engaged) {
-      float gain;
-      float sigma;
-      if (engaged) {
-         float mean = 1.0F - 0.04F * Math.min(1.0F, dist / 60.0F);
-         gain = clamp(mean + gauss(0.035F), 0.88F, 1.08F);
-         sigma = 0.04F * dist * this.noiseScale + 0.1F;
-      } else {
-         gain = 1.0F + gauss(0.01F);
-         sigma = 0.01F * dist;
-      }
+        int lag = engaged ? Math.min(latency, histCount - 1) : 0;
+        float velY = 0f, velP = 0f;
+        if (engaged) {
+            velY = clamp(wrap(histYaw[0] - histYaw[1]), -8f, 8f);
+            velP = clamp(histPitch[0] - histPitch[1], -4f, 4f);
+        }
 
-      float ay = errY * gain + gauss(sigma);
-      float ap = errP * gain + gauss(sigma * PITCH_NOISE_RATIO);
-      float fitts = (2.0F + 1.1F * log2(1.0F + dist / 4.0F)) / this.speedScale * (float)Math.exp(0.12 * this.rnd.nextGaussian());
-      int duration = Math.max(3, Math.round(Math.max(fitts, 1.875F * dist / PEAK_STEP)));
-      this.subs.add(new Sub(ay, ap, duration));
-      this.sinceStart = 0;
-      this.holdTicks = duration + this.latency + this.rnd.nextInt(2);
-   }
+        float horizon = lag + 2f;
+        float errY = wrap(histYaw[lag] + predictionGain * velY * horizon - (in.yaw() + remY));
+        float errP = histPitch[lag] + predictionGain * velP * horizon - (in.pitch() + remP);
 
-   private void startCorrection(float errY, float errP, float dist) {
-      float gain = 0.75F + 0.25F * this.rnd.nextFloat();
-      float sigma = 0.04F * dist * this.noiseScale + 0.03F;
-      int duration = (dist < 1.5F ? 2 : 3) + this.rnd.nextInt(2);
-      this.subs.add(new Sub(errY * gain + gauss(sigma), errP * gain + gauss(sigma * PITCH_NOISE_RATIO), duration));
-      this.sinceStart = 0;
-      this.holdTicks = duration + 1 + this.rnd.nextInt(3);
-   }
+        // Добавляем «виртуальную цель» из мультипоинта
+        errY += wrap(aimYaw - in.aimYaw());
+        errP += (aimPitch - in.aimPitch());
 
-   private float gauss(float sigma) {
-      return (float)this.rnd.nextGaussian() * sigma;
-   }
+        float dist = (float) Math.hypot(errY, errP);
+        boolean busy = !subs.isEmpty();
 
-   static float smooth(float t) {
-      float x = Math.max(0.0F, Math.min(1.0F, t));
-      return x * x * x * (10.0F - 15.0F * x + 6.0F * x * x);
-   }
+        if (dist >= BALLISTIC_MIN) {
+            if (!busy || dist >= RETARGET_MIN && sinceStart >= 2) {
+                startBallistic(errY, errP, dist, engaged);
+            }
+            return;
+        }
 
-   static float wrap(float degrees) {
-      float d = degrees % 360.0F;
-      if (d >= 180.0F) {
-         d -= 360.0F;
-      }
+        boolean overlap = engaged && dist >= TRACK_CONTINUOUS && sinceStart >= 2;
+        if (!overlap && (busy || holdTicks > 0)) return;
 
-      if (d < -180.0F) {
-         d += 360.0F;
-      }
+        if (!engaged) {
+            if (dist > 0.02f) {
+                subs.add(new Sub(errY, errP, dist < RETURN_FINISH ? 2 : 3));
+                sinceStart = 0;
+            }
+            return;
+        }
 
-      return d;
-   }
+        float db = noiseScale;
+        if (Math.abs(errY) > YAW_DEADBAND * db || Math.abs(errP) > PITCH_DEADBAND * db) {
+            startCorrection(errY, errP, dist);
+        }
+    }
 
-   private static float log2(float v) {
-      return (float)(Math.log(v) / Math.log(2.0));
-   }
+    private void startBallistic(float errY, float errP, float dist, boolean engaged) {
+        float gain, sigma;
+        if (engaged) {
+            float mean = 1f - 0.04f * Math.min(1f, dist / 60f);
+            gain = clamp(mean + gauss(0.035f), 0.88f, 1.08f);
+            sigma = 0.04f * dist * noiseScale + 0.1f;
+        } else {
+            gain = 1f + gauss(0.01f);
+            sigma = 0.01f * dist;
+        }
 
-   private static float clamp(float v, float lo, float hi) {
-      return v < lo ? lo : Math.min(v, hi);
-   }
+        float ay = errY * gain + gauss(sigma);
+        float ap = errP * gain + gauss(sigma * PITCH_NOISE_RATIO);
+        float fitts = (2f + 1.1f * log2(1f + dist / 4f)) / speedScale
+                * (float) Math.exp(0.12 * rnd.nextGaussian());
+        int duration = Math.max(3, Math.round(Math.max(fitts, 1.875f * dist / PEAK_STEP)));
 
-   private static boolean finite(float v) {
-      return !Float.isNaN(v) && !Float.isInfinite(v);
-   }
+        // Дополнительно: на длинных дистанциях больше шанс «перелёта»
+        if (dist > 30f && rnd.nextFloat() < 0.3f) {
+            ay += gauss(0.15f * errY / dist);
+            ap += gauss(0.10f * errP / dist);
+        }
+
+        subs.add(new Sub(ay, ap, duration));
+        sinceStart = 0;
+        holdTicks = duration + latency + rnd.nextInt(2);
+    }
+
+    private void startCorrection(float errY, float errP, float dist) {
+        float gain = 0.75f + 0.25f * rnd.nextFloat();
+        float sigma = 0.04f * dist * noiseScale + 0.03f;
+        int duration = (dist < 1.5f ? 2 : 3) + rnd.nextInt(2);
+        subs.add(new Sub(errY * gain + gauss(sigma), errP * gain + gauss(sigma * PITCH_NOISE_RATIO), duration));
+        sinceStart = 0;
+        holdTicks = duration + 1 + rnd.nextInt(3);
+    }
+
+    // ===== Утилиты =====
+    private float gauss(float sigma) {
+        return (float) rnd.nextGaussian() * sigma;
+    }
+
+    static float smooth(float t) {
+        float x = Math.max(0f, Math.min(1f, t));
+        return x * x * x * (10f - 15f * x + 6f * x * x);
+    }
+
+    static float wrap(float degrees) {
+        float d = degrees % 360f;
+        if (d >= 180f) d -= 360f;
+        if (d < -180f) d += 360f;
+        return d;
+    }
+
+    private static float log2(float v) {
+        return (float) (Math.log(v) / Math.log(2.0));
+    }
+
+    private static float clamp(float v, float lo, float hi) {
+        return v < lo ? lo : Math.min(v, hi);
+    }
+
+    private static boolean finite(float v) {
+        return !Float.isNaN(v) && !Float.isInfinite(v);
+    }
 }
