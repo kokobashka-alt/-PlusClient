@@ -1,5 +1,11 @@
 package ru.zov.implement.features.draggables.celestial;
 
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.font.FontRenderContext;
+import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 import org.joml.Matrix3x2fStack;
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.font.FontRenderer;
@@ -20,6 +26,9 @@ public abstract class CelestialDraggable extends AbstractDraggable {
    protected static final float R = 7.0F;
 
    private static final float TEXT_SCALE = 1.6F;
+   // FontRenderer.drawGlyphs lifts every string by this many GUI units (translate(x, y - 3.0F)).
+   private static final float GLYPH_LIFT = 3.0F;
+   private static final Map<FontRenderer, Float> CAP_CENTER = new HashMap<>();
    private static final float[] GA = {0.88F, 0.78F, 1.00F};
    private static final float[] GB = {0.66F, 0.47F, 0.95F};
    private static final float[] GC = {0.46F, 0.27F, 0.84F};
@@ -86,9 +95,40 @@ public abstract class CelestialDraggable extends AbstractDraggable {
       return font(size).getStringWidth(text);
    }
 
+   /**
+    * Distance in GUI units from the top of a glyph cell to the middle of a capital letter, from the same ascent the
+    * glyph atlas is baked with. Independent of the string, so every row shares one baseline.
+    */
+   private static float capCenter(FontRenderer font) {
+      Float cached = CAP_CENTER.get(font);
+      if (cached != null) {
+         return cached;
+      }
+
+      Font awt = font.getFont();
+      Graphics2D g = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).createGraphics();
+      int ascent;
+      try {
+         ascent = g.getFontMetrics(awt).getAscent();
+      } finally {
+         g.dispose();
+      }
+
+      float cap = (float) awt.createGlyphVector(new FontRenderContext(null, true, false), "H").getVisualBounds().getHeight();
+      float value = (ascent - cap / 2.0F) * 0.5F;
+      CAP_CENTER.put(font, value);
+      return value;
+   }
+
+   private float snap(float v) {
+      double scale = window.getScaleFactor();
+      return scale > 0.0 ? (float) (Math.round(v * scale) / scale) : v;
+   }
+
+   /** Draws the string so the middle of its capital letters sits on centerY; x and y are snapped to whole screen pixels. */
    protected float text(Matrix3x2fStack m, String text, float x, float centerY, float size, int color) {
       FontRenderer font = font(size);
-      font.drawString(m, text, x, centerY - font.getStringHeight(text) / 2.0F, color);
+      font.drawString(m, text, this.snap(x), this.snap(centerY + GLYPH_LIFT - capCenter(font)), color);
       return font.getStringWidth(text);
    }
 
