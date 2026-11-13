@@ -34,6 +34,14 @@ import ru.zov.implement.features.draggables.PouchStaffList;
 import ru.zov.implement.features.draggables.PouchTargetInfo;
 import ru.zov.implement.features.draggables.PouchArmor;
 import ru.zov.implement.features.draggables.PouchCooldowns;
+
+// Импорты твоих новых Javelin модулей:
+import ru.zov.implement.features.draggables.JavelinWatermarkDraggable;
+import ru.zov.implement.features.draggables.JavelinInfoDraggable;
+import ru.zov.implement.features.draggables.JavelinHotkeysDraggable;
+import ru.zov.implement.features.draggables.JavelinPotionsDraggable;
+import ru.zov.implement.features.draggables.JavelinTargetHudDraggable;
+
 public class DraggableRepository {
    private final List<AbstractDraggable> draggable = new ArrayList<>();
 
@@ -57,20 +65,26 @@ public class DraggableRepository {
          new PlayerInfo(),
          new SystemUseTracker(),
          new PouchWatermark(),
-    new PouchHotKeys(),
-    new PouchPotions(),
-    new PouchStaffList(),
-    new PouchTargetInfo(),
-    new PouchArmor(),
-    new PouchCooldowns(),
-    new CelestialWatermark(),
-    new CelestialArrayList(),
-    new CelestialKeybinds(),
-    new CelestialCooldowns(),
-    new CelestialPotions(),
-    new CelestialStaff(),
-    new CelestialTarget()
-);
+         new PouchHotKeys(),
+         new PouchPotions(),
+         new PouchStaffList(),
+         new PouchTargetInfo(),
+         new PouchArmor(),
+         new PouchCooldowns(),
+         new CelestialWatermark(),
+         new CelestialArrayList(),
+         new CelestialKeybinds(),
+         new CelestialCooldowns(),
+         new CelestialPotions(),
+         new CelestialStaff(),
+         new CelestialTarget(),
+         // Твои новые Javelin модули:
+         new JavelinWatermarkDraggable(),
+         new JavelinInfoDraggable(),
+         new JavelinHotkeysDraggable(),
+         new JavelinPotionsDraggable(),
+         new JavelinTargetHudDraggable()
+      );
    }
 
    @Native
