@@ -1,42 +1,38 @@
 package ru.zov.implement.features.draggables;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.text.Text;
+import org.joml.Matrix3x2fStack;
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 
 public class JavelinPotionsDraggable extends AbstractDraggable {
 
     public JavelinPotionsDraggable() {
-        super("javelinPotions", 140, 60, 130, 40);
+        super("javelinPotions", 140, 60, 130, 40, true);
     }
 
     @Override
-    public void draw(DrawContext context, float mouseX, float mouseY, float delta) {
-        super.draw(context, mouseX, mouseY, delta);
-        Minecraft mc = Minecraft.getInstance();
+    public void drawDraggable(DrawContext context) {
         if (mc.player == null || mc.player.getStatusEffects().isEmpty()) return;
 
-        FontRenderer font = Fonts.bold;
-        int activeCount = mc.player.getStatusEffects().size();
-        int height = 16 + (activeCount * 16);
+        Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(14, Fonts.Type.BOLD);
 
-        context.fill(getX(), getY(), getX() + getWidth(), getY() + height, ColorUtil.rgba(16, 16, 16, 180));
+        int height = 16 + mc.player.getStatusEffects().size() * 16;
+        rectangle.render(ShapeProperties.create(matrix, getX(), getY(), getWidth(), height)
+                .round(3.0F).color(ColorUtil.getColor(16, 16, 16, 0.7F)).build());
 
-        if (font != null) {
-            font.drawString(context.getMatrices(), "javelinPotions", getX() + 6, getY() + 5, 0xFFFF5555);
+        font.drawString(matrix, "javelinPotions", getX() + 6, getY() + 5, 0xFFFF5555);
 
-            int offset = 16;
-            for (StatusEffectInstance effect : mc.player.getStatusEffects()) {
-                String name = Text.translatable(effect.getTranslationKey()).getString() + " " + (effect.getAmplifier() + 1);
-                
-                font.drawString(context.getMatrices(), name, getX() + 6, getY() + 5 + offset, -1);
-                offset += 16;
-            }
+        int offset = 16;
+        for (StatusEffectInstance effect : mc.player.getStatusEffects()) {
+            String name = effect.getEffectType().value().getName().getString() + " " + (effect.getAmplifier() + 1);
+            font.drawString(matrix, name, getX() + 6, getY() + 5 + offset, -1);
+            offset += 16;
         }
     }
 }

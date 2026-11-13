@@ -1,46 +1,46 @@
 package ru.zov.implement.features.draggables;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.LivingEntity;
+import org.joml.Matrix3x2fStack;
 import ru.zov.api.feature.draggable.AbstractDraggable;
 import ru.zov.api.system.font.FontRenderer;
 import ru.zov.api.system.font.Fonts;
+import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 
 public class JavelinTargetHudDraggable extends AbstractDraggable {
-    
-    // Можешь передавать сюда текущую цель из киллауры
+
+    // Сюда можно передавать текущую цель из киллауры
     public static LivingEntity currentTargetPath = null;
 
     public JavelinTargetHudDraggable() {
-        super("javelinTargetHud", 200, 200, 130, 36);
+        super("javelinTargetHud", 200, 200, 130, 36, true);
     }
 
     @Override
-    public void draw(DrawContext context, float mouseX, float mouseY, float delta) {
-        super.draw(context, mouseX, mouseY, delta);
-        
-        // Для теста в редакторе можно выводить себя или оставить пустым, если цель null
-        LivingEntity target = currentTargetPath != null ? currentTargetPath : Minecraft.getInstance().player;
+    public void drawDraggable(DrawContext context) {
+        // Для теста в редакторе без цели показываем себя
+        LivingEntity target = currentTargetPath != null ? currentTargetPath : mc.player;
         if (target == null) return;
 
-        FontRenderer font = Fonts.bold;
-        context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), ColorUtil.rgba(16, 16, 16, 180));
+        Matrix3x2fStack matrix = context.getMatrices();
+        FontRenderer font = Fonts.getSize(14, Fonts.Type.BOLD);
 
-        if (font != null) {
-            String name = target.getName().getString();
-            font.drawString(context.getMatrices(), name, getX() + 34, getY() + 6, -1);
+        rectangle.render(ShapeProperties.create(matrix, getX(), getY(), getWidth(), getHeight())
+                .round(3.0F).color(ColorUtil.getColor(16, 16, 16, 0.7F)).build());
 
-            float health = target.getHealth();
-            float maxHealth = target.getMaxHealth();
-            float hpPercentage = Math.min(1.0f, health / maxHealth);
+        font.drawString(matrix, target.getName().getString(), getX() + 34, getY() + 6, -1);
 
-            // Полоска здоровья
-            context.fill(getX() + 34, getY() + 20, getX() + 120, getY() + 26, ColorUtil.rgba(68, 68, 68, 100));
-            context.fill(getX() + 34, getY() + 20, getX() + 34 + (int)(86 * hpPercentage), getY() + 26, ColorUtil.rgba(255, 85, 85, 255));
+        float health = target.getHealth();
+        float maxHealth = target.getMaxHealth();
+        float hpPercentage = maxHealth > 0.0F ? Math.min(1.0F, health / maxHealth) : 0.0F;
 
-            font.drawString(context.getMatrices(), "❤ " + (int)health, getX() + 34, getY() + 10, 0xFFFF5555);
-        }
+        font.drawString(matrix, "❤ " + (int) health, getX() + 34, getY() + 10, 0xFFFF5555);
+
+        rectangle.render(ShapeProperties.create(matrix, getX() + 34, getY() + 20, 86, 6)
+                .round(2.0F).color(ColorUtil.getColor(68, 68, 68, 0.4F)).build());
+        rectangle.render(ShapeProperties.create(matrix, getX() + 34, getY() + 20, 86 * hpPercentage, 6)
+                .round(2.0F).color(ColorUtil.getColor(255, 85, 85, 1.0F)).build());
     }
 }

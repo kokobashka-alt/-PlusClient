@@ -1,5 +1,7 @@
 package ru.zov.implement.features.draggables;
 
+import ru.zov.api.feature.draggable.AbstractDraggable;
+
 import java.util.ArrayList;
 import java.util.List;
 
