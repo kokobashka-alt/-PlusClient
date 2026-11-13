@@ -78,7 +78,6 @@ import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
 import ru.zov.implement.features.modules.render.Ambience;
 import ru.zov.implement.features.modules.render.Atmosphere;
-import ru.zov.implement.features.draggables.JavelinHUD;
 
 public class ModuleRepository {
    private final List<Module> modules = new ArrayList<>();
@@ -144,25 +143,24 @@ public class ModuleRepository {
          new AutoWeb(),
          new AutoBuy(),
          new ServerRPSpoofer(),
-            new AutoCart(),
-   new AutoGApple(),
-   new SystemHud(),
-   new TargetESP(),
-   new SpearAura(),
-  new JumpCircle(),
-   new CrystalAura(),
-   new PouchHud(),
-   new CelestialHud(),
-   new Esp2D(),
-   new AimAssist(),
-   new Cubes(),
-   new ViewModel(),
-   new TalismanIndication(),
-   new SwingAnimations(),
-   new Ambience(),
-   new Atmosphere(),
-   new JavelinHUD()
-);
+         new AutoCart(),
+         new AutoGApple(),
+         new SystemHud(),
+         new TargetESP(),
+         new SpearAura(),
+         new JumpCircle(),
+         new CrystalAura(),
+         new PouchHud(),
+         new CelestialHud(),
+         new Esp2D(),
+         new AimAssist(),
+         new Cubes(),
+         new ViewModel(),
+         new TalismanIndication(),
+         new SwingAnimations(),
+         new Ambience(),
+         new Atmosphere()
+      );
    }
 
    @Native
