@@ -73,6 +73,7 @@ import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.ShardRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.ShardNanoRotationMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -162,6 +163,7 @@ public final class Aura extends Module {
     private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
     private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
     private final ShardRotationMode shardRotationMode = new ShardRotationMode();
+    private final ShardNanoRotationMode shard2RotationMode = new ShardNanoRotationMode();
     
     public int attackCooldown;
     public int sprintTicks;
@@ -745,6 +747,7 @@ public final class Aura extends Module {
             case NEURO -> this.neuroRotationMode;
             case SHARD -> this.shardRotationMode;
             case FOV -> this.spookyTimeRotationMode;
+            case SHARD_2 -> this.shard2RotationMode;
         };
     }
 
