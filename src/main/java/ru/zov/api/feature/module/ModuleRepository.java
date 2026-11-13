@@ -56,6 +56,7 @@ import ru.zov.implement.features.modules.render.EntityESP;
 import ru.zov.implement.features.modules.render.EntityFinder;
 import ru.zov.implement.features.modules.render.HandTweaks;
 import ru.zov.implement.features.modules.render.Hud;
+import ru.zov.implement.features.modules.render.JavelinHud;
 import ru.zov.implement.features.modules.render.NoRender;
 import ru.zov.implement.features.modules.render.ProjectilePrediction;
 import ru.zov.implement.features.modules.render.SeeInvisible;
@@ -78,100 +79,99 @@ import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
 import ru.zov.implement.features.modules.render.Ambience;
 import ru.zov.implement.features.modules.render.Atmosphere;
-import ru.zov.implement.features.draggables.JavelinHUD;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
 
     @Native
     public void setup() {
-       this.register(
-          new ServerHelper(),
-          new WaterSpeed(),
-          new ClickAction(),
-          new ItemTweaks(),
-          new Hud(),
-          new AuctionHelper(),
-          new ProjectilePrediction(),
-          new XRay(),
-          new Aura(),
-          new Speed(),
-          new AutoSwap(),
-          new NoFriendDamage(),
-          new AntiBot(),
-          new AutoCrystal(),
-          new AutoSprint(),
-          new ElytraHelper(),
-          new ClanUpgrade(),
-          new NoDelay(),
-          new AutoRespawn(),
-          new NoSlow(),
-          new WaterLeave(),
-          new ElytraFly(),
-          new ScreenWalk(),
-          new Blink(),
-          new ElytraRecast(),
-          new AutoTool(),
-          new Nuker(),
-          new FastBreak(),
-          new CameraTweaks(),
-          new HandTweaks(),
-          new InteractThroughWalls(),
-          new NoRender(),
-          new AutoTotem(),
-          new EnderChestPlus(),
-          new DebugCamera(),
-          new TriggerBot(),
-          new ContainerStealer(),
-          new AutoTpAccept(),
-          new Arrows(),
-          new AutoLeave(),
-          new WorldTweaks(),
-          new EntityESP(),
-          new TargetPearl(),
-          new NameProtect(),
-          new AbilitiesFly(),
-          new Criticals(),
-          new SeeInvisible(),
-          new AutoArmor(),
-          new AutoUse(),
-          new AirJump(),
-          new NoInteract(),
-          new CrossHair(),
-          new FireWorkBooster(),
-          new HighJump(),
-          new EntityFinder(),
-          new AutoWeb(),
-          new AutoBuy(),
-          new ServerRPSpoofer(),
-          new AutoCart(),
-          new AutoGApple(),
-          new SystemHud(),
-          new TargetESP(),
-          new SpearAura(),
-          new JumpCircle(),
-          new CrystalAura(),
-          new PouchHud(),
-          new CelestialHud(),
-          new Esp2D(),
-          new AimAssist(),
-          new Cubes(),
-          new ViewModel(),
-          new TalismanIndication(),
-          new SwingAnimations(),
-          new Ambience(),
-          new Atmosphere(),
-          new JavelinHUD()
-       );
+        this.register(
+            new ServerHelper(),
+            new WaterSpeed(),
+            new ClickAction(),
+            new ItemTweaks(),
+            new Hud(),
+            new AuctionHelper(),
+            new ProjectilePrediction(),
+            new XRay(),
+            new Aura(),
+            new Speed(),
+            new AutoSwap(),
+            new NoFriendDamage(),
+            new AntiBot(),
+            new AutoCrystal(),
+            new AutoSprint(),
+            new ElytraHelper(),
+            new ClanUpgrade(),
+            new NoDelay(),
+            new AutoRespawn(),
+            new NoSlow(),
+            new WaterLeave(),
+            new ElytraFly(),
+            new ScreenWalk(),
+            new Blink(),
+            new ElytraRecast(),
+            new AutoTool(),
+            new Nuker(),
+            new FastBreak(),
+            new CameraTweaks(),
+            new HandTweaks(),
+            new InteractThroughWalls(),
+            new NoRender(),
+            new AutoTotem(),
+            new EnderChestPlus(),
+            new DebugCamera(),
+            new TriggerBot(),
+            new ContainerStealer(),
+            new AutoTpAccept(),
+            new Arrows(),
+            new AutoLeave(),
+            new WorldTweaks(),
+            new EntityESP(),
+            new TargetPearl(),
+            new NameProtect(),
+            new AbilitiesFly(),
+            new Criticals(),
+            new SeeInvisible(),
+            new AutoArmor(),
+            new AutoUse(),
+            new AirJump(),
+            new NoInteract(),
+            new CrossHair(),
+            new FireWorkBooster(),
+            new HighJump(),
+            new EntityFinder(),
+            new AutoWeb(),
+            new AutoBuy(),
+            new ServerRPSpoofer(),
+            new AutoCart(),
+            new AutoGApple(),
+            new SystemHud(),
+            new TargetESP(),
+            new SpearAura(),
+            new JumpCircle(),
+            new CrystalAura(),
+            new PouchHud(),
+            new CelestialHud(),
+            new Esp2D(),
+            new AimAssist(),
+            new Cubes(),
+            new ViewModel(),
+            new TalismanIndication(),
+            new SwingAnimations(),
+            new Ambience(),
+            new Atmosphere(),
+            new JavelinHud()
+        );
     }
 
     @Native
     public void register(Module... module) {
-       this.modules.addAll(List.of(module));
+        this.modules.addAll(List.of(module));
     }
 
     @Native
     public List<Module> modules() {
-       return this.modules;
+        return this.modules;
     }
 }
