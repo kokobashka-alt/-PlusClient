@@ -31,11 +31,11 @@ public final class ShardNanoRotationMode extends RotationMode {
                     Math.min(maxSpeed, Math.min(brakingSpeed, Math.abs(error) * 0.65f)),
                     error
             );
-            float desiredAcceleration = clamp(desiredVelocity - velocity,
+            float desiredAcceleration = MathHelper.clamp(desiredVelocity - velocity,
                     -accelerationLimit, accelerationLimit);
-            acceleration += clamp(desiredAcceleration - acceleration,
+            acceleration += MathHelper.clamp(desiredAcceleration - acceleration,
                     -accelerationLimit * 0.5f, accelerationLimit * 0.5f);
-            velocity = clamp(velocity + acceleration, -maxSpeed, maxSpeed);
+            velocity = MathHelper.clamp(velocity + acceleration, -maxSpeed, maxSpeed);
             if (Math.signum(velocity) == Math.signum(error) && Math.abs(velocity) > Math.abs(error)) {
                 velocity = error;
                 acceleration = 0f;
