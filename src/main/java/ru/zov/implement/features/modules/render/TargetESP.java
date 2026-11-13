@@ -155,7 +155,7 @@ public class TargetESP extends Module {
     }
 
     private void drawChains(WorldRenderEvent e, float shown) {
-        Vec3d camera = mc.gameRenderer.getCamera().getPos();
+        Vec3d camera = mc.gameRenderer.getCamera().getCameraPos();
 
         Vec3d center = target.getLerpedPos(e.partialTicks())
                 .add(0, target.getHeight() * height.getValue(), 0)
@@ -198,7 +198,7 @@ public class TargetESP extends Module {
         float time = cardsElapsed;
 
         Camera camera = mc.gameRenderer.getCamera();
-        Vec3d camPos = camera.getPos();
+        Vec3d camPos = camera.getCameraPos();
         Vec3d rel = target.getLerpedPos(e.partialTicks()).subtract(camPos);
 
         int faceColor = ColorUtil.multAlpha(0xFFF7F3EA, appear * 0.95f);
