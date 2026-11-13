@@ -1,90 +1,62 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import ru.zov.implement.features.modules.combat.Aura;
+import ru.zov.implement.features.modules.combat.killaura.AuraRuntime;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 
-import java.util.Random;
-
 /**
- * Neuro-имитация (без ML-модели).
- *
- * Фазы наводки:
- *   FAR  — цель далеко по углу, быстрый рывок
- *   NEAR — цель близко, плавное торможение
- *   LOCK — удержание с микро-дрожанием (имитация руки)
- *
- * Точка расширения: если появится NeuroController с весами —
- * переопределите predict(...), оставив process(...) как обёртку.
+ * Neuro rotation: a procedural human-aim model (see {@link NeuroAimModel}), not a trained network.
+ * RotationManager calls process() once per client tick; entity == null is the return-to-camera phase,
+ * where {@code to} is the player's real rotation. A hit is detected from Aura.hitCounter().
  */
 public final class NeuroRotationMode extends RotationMode {
+   private final NeuroAimModel model = new NeuroAimModel(System.nanoTime());
+   private Entity tracked;
+   private int lastHitCounter = Integer.MIN_VALUE;
 
-    private final Random rnd = new Random();
-    private Phase phase = Phase.FAR;
+   public NeuroRotationMode() {
+      this("Neuro");
+   }
 
-    private enum Phase { FAR, NEAR, LOCK }
+   public NeuroRotationMode(String name) {
+      super(name);
+   }
 
-    private static final float NEAR_THRESHOLD = 20f;
-    private static final float LOCK_THRESHOLD = 3f;
+   @Override
+   public Rotation process(Rotation from, Rotation to, Vec3d vec, Entity entity) {
+      if (from == null || to == null) {
+         return to;
+      }
 
-    public NeuroRotationMode() {
-        this("Neuro");
-    }
+      boolean engaged = entity != null;
+      boolean newTarget = engaged && entity != this.tracked;
+      this.tracked = entity;
 
-    public NeuroRotationMode(String name) {
-        super(name);
-    }
+      boolean hit = false;
+      Aura aura = (Aura)AuraRuntime.INSTANCE.moduleRepository().get(Aura.class);
+      if (aura != null) {
+         int counter = aura.hitCounter();
+         hit = this.lastHitCounter != Integer.MIN_VALUE && counter != this.lastHitCounter;
+         this.lastHitCounter = counter;
+      }
 
-    @Override
-    public Rotation process(Rotation from, Rotation to, Vec3d vec, Entity entity) {
-        if (from == null || to == null) return to;
+      NeuroAimModel.Output out = this.model.step(new NeuroAimModel.Input(
+         from.getYaw(), from.getPitch(), to.getYaw(), to.getPitch(), engaged, newTarget, hit));
+      return new Rotation(MathHelper.wrapDegrees(out.yaw()), MathHelper.clamp(out.pitch(), -90.0F, 90.0F));
+   }
 
-        float dYaw = wrap(to.getYaw() - from.getYaw());
-        float dPitch = to.getPitch() - from.getPitch();
-        float dist = (float) Math.hypot(dYaw, dPitch);
+   /** The model adds its own motor noise; a random aim point offset per tick would be white jitter. */
+   @Override
+   public Vec3d randomValue() {
+      return Vec3d.ZERO;
+   }
 
-        if (dist > NEAR_THRESHOLD)      phase = Phase.FAR;
-        else if (dist > LOCK_THRESHOLD) phase = Phase.NEAR;
-        else                            phase = Phase.LOCK;
-
-        float speed = switch (phase) {
-            case FAR  -> 0.75f + rnd.nextFloat() * 0.15f;
-            case NEAR -> 0.35f + rnd.nextFloat() * 0.10f;
-            case LOCK -> 0.12f + rnd.nextFloat() * 0.06f;
-        };
-
-        float newYaw = from.getYaw() + dYaw * speed;
-        float newPitch = from.getPitch() + dPitch * speed;
-
-        float jitter = phase == Phase.LOCK ? 0.06f : 0.15f;
-        newYaw   += (rnd.nextFloat() - 0.5f) * jitter;
-        newPitch += (rnd.nextFloat() - 0.5f) * jitter * 0.7f;
-
-        return new Rotation(newYaw, clampPitch(newPitch));
-    }
-
-    @Override
-    public Vec3d randomValue() {
-        return new Vec3d(
-            (rnd.nextDouble() - 0.5) * 0.4,
-            0.0,
-            (rnd.nextDouble() - 0.5) * 0.4
-        );
-    }
-
-    /** Сброс фазы в FAR (можно звать из Aura при смене цели). */
-    public void reset() {
-        phase = Phase.FAR;
-    }
-
-    private static float wrap(float deg) {
-        deg %= 360f;
-        if (deg >= 180f) deg -= 360f;
-        if (deg < -180f) deg += 360f;
-        return deg;
-    }
-
-    private static float clampPitch(float p) {
-        return p < -90f ? -90f : (p > 90f ? 90f : p);
-    }
+   public void reset() {
+      this.model.reset();
+      this.tracked = null;
+      this.lastHitCounter = Integer.MIN_VALUE;
+   }
 }
