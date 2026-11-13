@@ -18,14 +18,12 @@ public class JavelinHud extends Module {
     }
 
     @Override
-    public void onEnable() {
-        super.onEnable();
+    public void activate() {
         updateDraggables(true);
     }
 
     @Override
-    public void onDisable() {
-        super.onDisable();
+    public void deactivate() {
         updateDraggables(false);
     }
 
