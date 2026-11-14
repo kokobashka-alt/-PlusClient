@@ -44,7 +44,12 @@ public final class NeuroRotationMode extends RotationMode {
       }
 
       NeuroAimModel.Output out = this.model.step(new NeuroAimModel.Input(
-         from.getYaw(), from.getPitch(), to.getYaw(), to.getPitch(), engaged, newTarget, hit));
+         from.getYaw(), from.getPitch(),
+         to.getYaw(), to.getPitch(),
+         to.getYaw(), to.getPitch(),
+         to.getYaw(), to.getPitch(),
+         to.getYaw(), to.getPitch(),
+         engaged, newTarget, hit));
       return new Rotation(MathHelper.wrapDegrees(out.yaw()), MathHelper.clamp(out.pitch(), -90.0F, 90.0F));
    }
 
