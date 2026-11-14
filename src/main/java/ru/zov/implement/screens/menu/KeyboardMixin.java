@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zov.api.event.EventManager;
 import ru.zov.implement.events.keyboard.KeyEvent;
-import ru.zov.implement.screens.menu.moonward.MoonwardClickGui
+import ru.zov.implement.screens.menu.moonward.MoonwardClickGui;
 
 @Mixin({Keyboard.class})
 public class KeyboardMixin {
