@@ -1,6 +1,5 @@
 package ru.zov.implement.features.modules.render;
 
-import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.MathHelper;
@@ -197,9 +196,9 @@ public class TargetESP extends Module {
         float hitSpin = red * red * 360f;
         float time = cardsElapsed;
 
-        Camera camera = mc.gameRenderer.getCamera();
-        Vec3d camPos = camera.getCameraPos();
-        Vec3d rel = target.getLerpedPos(e.partialTicks()).subtract(camPos);
+        // Render3DUtil.drawLine uses the world-space matrix that already subtracts the camera position,
+        // so card positions must be world coordinates, not camera-relative ones.
+        Vec3d rel = target.getLerpedPos(e.partialTicks());
 
         int faceColor = ColorUtil.multAlpha(0xFFF7F3EA, appear * 0.95f);
         int redColor = ColorUtil.multAlpha(0xFFD8263A, appear * 0.95f);
