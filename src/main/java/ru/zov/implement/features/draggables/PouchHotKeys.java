@@ -54,7 +54,7 @@ public class PouchHotKeys extends AbstractDraggable {
     @Override
     public void drawDraggable(DrawContext context) {
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
-        FontRenderer titleFont = Fonts.getSize(14, Fonts.Type.DEFAULT);
+        FontRenderer titleFont = Fonts.getSize(14, Fonts.Type.BOLD);
         FontRenderer nameFont = Fonts.getSize(12, Fonts.Type.DEFAULT);
         FontRenderer keyFont = Fonts.getSize(10, Fonts.Type.DEFAULT);
 

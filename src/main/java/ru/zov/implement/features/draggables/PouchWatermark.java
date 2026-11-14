@@ -8,6 +8,7 @@ import ru.zov.api.system.font.Fonts;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
+import ru.zov.common.util.world.ServerUtil;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +23,9 @@ public class PouchWatermark extends AbstractDraggable {
     private long lastRenderTime = System.currentTimeMillis();
     private float previewAlpha = 0.0F;
     private float currentMaxTextWidth = 0.0F;
+    private static final float WATERMARK_ROW_HEIGHT = 12.0F;
+    private static final float SEGMENT_GAP = 4.0F;
+    private static final String CLIENT_UID = "777";
 
     public PouchWatermark() {
         // Координаты: x=10, y=10 (как в оригинале)
@@ -38,8 +42,7 @@ public class PouchWatermark extends AbstractDraggable {
         if (mc.player == null) return;
 
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
-        FontRenderer font = Fonts.getSize(13, Fonts.Type.DEFAULT);
-        FontRenderer iconFont = Fonts.getSize(14, Fonts.Type.DEFAULT);
+        FontRenderer font = Fonts.getSize(12, Fonts.Type.DEFAULT);
 
         long time = System.currentTimeMillis();
         float delta = (time - lastRenderTime) / 1000.0F;
@@ -67,47 +70,28 @@ public class PouchWatermark extends AbstractDraggable {
         float x = this.getX();
         float y = this.getY();
         
-        // --- 1. ОСНОВНАЯ ПАНЕЛЬ (КАК НА СКРИНЕ) ---
-        String clientName = "Pouch"; // Имя клиента
-        String username = mc.player.getName().getString();
-        String fps = mc.getCurrentFps() + "fps";
-        String ping = "0ms";
+        // --- 1. ОСНОВНАЯ ПАНЕЛЬ: две строки в стиле AspectDLC ---
+        String ping = "0";
         if (mc.getNetworkHandler() != null) {
             var entry = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
-            if (entry != null) ping = entry.getLatency() + "ms";
+            if (entry != null) ping = String.valueOf(entry.getLatency());
         }
+        String server = mc.getCurrentServerEntry() != null ? mc.getCurrentServerEntry().address : "singleplayer";
 
-        // Считаем ширину
-        String fullText = clientName + " | " + username + " | " + ping + " | " + fps;
-        float mainWidth = font.getStringWidth(fullText) + 20;
-        float mainHeight = 16f;
+        String clientName = "Pouch";
+        String[] rowOne = {clientName, "BUILD: BETA", mc.getCurrentFps() + " Fps", ping + "ms"};
+        String[] rowTwo = {String.format("%.1f TPS", ServerUtil.TPS), "UID: " + CLIENT_UID, server};
 
-        // Фон
-        blur.render(ShapeProperties.create(matrix, x, y, mainWidth, mainHeight)
-                .round(4.0F).softness(1.0F).thickness(2.0F)
-                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
+        float rowOneWidth = segmentsWidth(font, rowOne);
+        float rowTwoWidth = segmentsWidth(font, rowTwo);
+        float mainWidth = Math.max(rowOneWidth, rowTwoWidth) + 2.0F * PouchStyle.SIDE_PADDING;
+        float mainHeight = 2.0F * WATERMARK_ROW_HEIGHT + 4.0F;
 
-        // Текст (градиент)
-        float currentX = x + 5;
-        font.drawGradientString(matrix, clientName, currentX, y + 5, ColorUtil.fade(0), ColorUtil.fade(100));
-        currentX += font.getStringWidth(clientName);
+        rectangle.render(ShapeProperties.create(matrix, x, y, mainWidth, mainHeight)
+                .round(PouchStyle.PANEL_ROUND).color(PouchStyle.panelColor(ColorUtil.getClientColor())).build());
 
-        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
-        currentX += font.getStringWidth(" | ");
-
-        font.drawString(matrix, username, currentX, y + 5, ColorUtil.getText());
-        currentX += font.getStringWidth(username);
-
-        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
-        currentX += font.getStringWidth(" | ");
-
-        font.drawString(matrix, ping, currentX, y + 5, ColorUtil.getClientColor());
-        currentX += font.getStringWidth(ping);
-
-        font.drawString(matrix, " | ", currentX, y + 5, ColorUtil.getText(0.5F));
-        currentX += font.getStringWidth(" | ");
-
-        font.drawString(matrix, fps, currentX, y + 5, ColorUtil.getClientColor());
+        drawSegments(matrix, font, rowOne, x + PouchStyle.SIDE_PADDING, y + 2.0F + WATERMARK_ROW_HEIGHT / 2.0F, true);
+        drawSegments(matrix, font, rowTwo, x + PouchStyle.SIDE_PADDING, y + 2.0F + WATERMARK_ROW_HEIGHT * 1.5F, false);
 
         // --- 2. УВЕДОМЛЕНИЯ (если модуль включен/выключен) ---
         // В оригинале это отдельный стек. Мы сделаем его прямо под ватермаркой.
@@ -154,5 +138,36 @@ public class PouchWatermark extends AbstractDraggable {
 
         this.setWidth((int) maxNotifyWidth);
         this.setHeight((int) (notifyY - y));
+    }
+
+    private static float segmentsWidth(FontRenderer font, String[] segments) {
+        float width = 0.0F;
+        for (int i = 0; i < segments.length; i++) {
+            width += font.getStringWidth(segments[i]);
+            if (i < segments.length - 1) {
+                width += 2.0F * SEGMENT_GAP + 1.0F;
+            }
+        }
+        return width;
+    }
+
+    private void drawSegments(org.joml.Matrix3x2fStack matrix, FontRenderer font, String[] segments, float x, float centerY, boolean gradientFirst) {
+        float textY = PouchStyle.textY(centerY, 12);
+        float cursor = x;
+        for (int i = 0; i < segments.length; i++) {
+            if (i == 0 && gradientFirst) {
+                font.drawGradientString(matrix, segments[i], cursor, textY, ColorUtil.fade(0), ColorUtil.fade(100));
+            } else {
+                font.drawString(matrix, segments[i], cursor, textY, ColorUtil.getText());
+            }
+
+            cursor += font.getStringWidth(segments[i]);
+            if (i < segments.length - 1) {
+                cursor += SEGMENT_GAP;
+                rectangle.render(ShapeProperties.create(matrix, cursor, centerY - 3.0F, 1.0F, 6.0F)
+                        .color(ColorUtil.multAlpha(ColorUtil.getClientColor(), 0.8F)).build());
+                cursor += 1.0F + SEGMENT_GAP;
+            }
+        }
     }
 }

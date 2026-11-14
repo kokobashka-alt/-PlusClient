@@ -6,6 +6,7 @@ import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.CooldownUpdateS2CPacket;
@@ -24,17 +25,19 @@ import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
 import ru.zov.common.util.item.ItemUtil;
 import ru.zov.common.util.math.StopWatch;
-import ru.zov.common.util.other.StringUtil;
 import ru.zov.implement.events.packet.PacketEvent;
 
 public class PouchCooldowns extends AbstractDraggable {
+
+    private static final float MIN_WIDTH = 90.0F;
+    private static final float NAME_TIME_GAP = 12.0F;
 
     private final MinecraftClient mc = MinecraftClient.getInstance();
 
     public final List<PouchCoolDown> list = new ArrayList<>();
 
     public PouchCooldowns() {
-        super("PouchCooldowns", 10, 120, 120, 23, true);
+        super("PouchCooldowns", 10, 120, 90, 28, true);
     }
 
     @Override
@@ -85,60 +88,79 @@ public class PouchCooldowns extends AbstractDraggable {
         }
     }
 
+    private void drawItem(DrawContext context, ItemStack stack, float x, float y, float size) {
+        org.joml.Matrix3x2fStack matrix = context.getMatrices();
+        float scale = size / 16.0F;
+        matrix.pushMatrix();
+        matrix.translate(x, y);
+        matrix.scale(scale, scale);
+        context.drawItem(stack, 0, 0);
+        matrix.popMatrix();
+    }
+
+    private record Row(ItemStack stack, String name, String time, float anim) {
+    }
+
+    /**
+     * Cooldowns in the AspectDLC style: one flat tinted panel, a bold "Cooldowns" title on the left, then one row
+     * per item on cooldown: small item icon, name, remaining time as m:ss on the right. Rows fade with their animation.
+     */
     @Override
     public void drawDraggable(DrawContext context) {
         org.joml.Matrix3x2fStack matrix = context.getMatrices();
-        FontRenderer font = Fonts.getSize(15, Fonts.Type.DEFAULT);
-        FontRenderer fontItem = Fonts.getSize(13, Fonts.Type.DEFAULT);
+        FontRenderer titleFont = Fonts.getSize(14, Fonts.Type.BOLD);
+        FontRenderer nameFont = Fonts.getSize(12, Fonts.Type.DEFAULT);
+        FontRenderer timeFont = Fonts.getSize(10, Fonts.Type.DEFAULT);
 
-        blur.render(ShapeProperties.create(matrix, this.getX(), this.getY(), this.getWidth(), 17.5F)
-                .round(4.0F, 0.0F, 4.0F, 0.0F).softness(1.0F).thickness(2.0F)
-                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRectDarker(0.9F)).build());
-
-        blur.render(ShapeProperties.create(matrix, this.getX(), (float) this.getY() + 17.0F, this.getWidth(), this.getHeight() - 17)
-                .round(0.0F, 4.0F, 0.0F, 4.0F).softness(1.0F).thickness(2.0F)
-                .outlineColor(ColorUtil.getOutline()).color(ColorUtil.getRect(0.7F)).build());
-
-        float centerX = this.getX() + this.getWidth() / 2.0F;
-        String header = "Cooldowns";
-        font.drawString(matrix, header, (int) (centerX - font.getStringWidth(header) / 2.0F), this.getY() + 7, ColorUtil.getText());
-
-        rectangle.render(ShapeProperties.create(matrix, this.getX() + 5, this.getY() + 16.5F, this.getWidth() - 10, 1.0F)
-                .color(ColorUtil.getClientColor()).build());
-
-        int offset = 23;
-        int maxWidth = 120;
-
-        // Если открыт чат и кулдаунов нет, показываем фейковый для перетаскивания
-        if (list.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen)) {
-            context.drawItem(new net.minecraft.item.ItemStack(Items.ENDER_PEARL), (int) this.getX() + 5, (int) this.getY() + offset - 3);
-            fontItem.drawString(matrix, "Ender Pearl", this.getX() + 23, this.getY() + offset, ColorUtil.getText(0.5F));
-            fontItem.drawString(matrix, "1.5s", this.getX() + this.getWidth() - (int) fontItem.getStringWidth("1.5s") - 5, this.getY() + offset, ColorUtil.getClientColor());
-            offset += 12;
+        boolean placeholder = list.isEmpty() && PlayerIntersectionUtil.isChat(mc.currentScreen);
+        List<Row> rows = new ArrayList<>();
+        if (placeholder) {
+            ItemStack pearl = new ItemStack(Items.ENDER_PEARL);
+            rows.add(new Row(pearl, pearl.getName().getString(), "0:15", 1.0F));
         } else {
             for (PouchCoolDown coolDown : list) {
                 float animation = coolDown.anim().getOutput().floatValue();
-                int time = -coolDown.time().elapsedInt() / 100;
+                if (animation <= 0.05F) {
+                    continue;
+                }
 
-                if (animation <= 0.05f) continue;
-
-                String name = coolDown.item().getDefaultStack().getName().getString();
-                String duration = StringUtil.getDurationMS(time, true);
-
-                context.drawItem(coolDown.item().getDefaultStack(), (int) this.getX() + 5, (int) this.getY() + offset - 3);
-                fontItem.drawString(matrix, name, this.getX() + 23, this.getY() + offset, ColorUtil.getText());
-
-                int durationWidth = (int) fontItem.getStringWidth(duration);
-                fontItem.drawString(matrix, duration, this.getX() + this.getWidth() - durationWidth - 5, this.getY() + offset, ColorUtil.getClientColor());
-
-                int width = (int) fontItem.getStringWidth(name) + durationWidth + 35;
-                maxWidth = Math.max(maxWidth, width);
-                offset += Math.max(1, (int) (12.0F * animation));
+                long remainingMs = Math.max(0L, -(long) coolDown.time().elapsedInt());
+                ItemStack stack = coolDown.item().getDefaultStack();
+                rows.add(new Row(stack, stack.getName().getString(), PouchStyle.clock((remainingMs + 999L) / 1000L), animation));
             }
         }
 
-        this.setWidth(maxWidth);
-        this.setHeight(offset + 5);
+        float panelWidth = MIN_WIDTH;
+        float rowsHeight = 0.0F;
+        for (Row row : rows) {
+            float w = PouchStyle.SIDE_PADDING + PouchStyle.ICON_SIZE + 4.0F + nameFont.getStringWidth(row.name())
+                    + NAME_TIME_GAP + timeFont.getStringWidth(row.time()) + PouchStyle.SIDE_PADDING;
+            panelWidth = Math.max(panelWidth, w);
+            rowsHeight += PouchStyle.ROW_HEIGHT * row.anim();
+        }
+
+        float panelHeight = PouchStyle.HEADER_HEIGHT + rowsHeight + (rows.isEmpty() ? 0.0F : 2.0F);
+        float x = this.getX();
+        float y = this.getY();
+
+        rectangle.render(ShapeProperties.create(matrix, x, y, panelWidth, panelHeight)
+                .round(PouchStyle.PANEL_ROUND).color(PouchStyle.panelColor(ColorUtil.getClientColor())).build());
+
+        titleFont.drawString(matrix, "Cooldowns", x + PouchStyle.SIDE_PADDING, PouchStyle.textY(y + PouchStyle.HEADER_HEIGHT / 2.0F, 14), ColorUtil.WHITE);
+
+        float rowTop = y + PouchStyle.HEADER_HEIGHT;
+        for (Row row : rows) {
+            float centerY = rowTop + PouchStyle.ROW_HEIGHT / 2.0F;
+            if (row.anim() > 0.5F) {
+                drawItem(context, row.stack(), x + PouchStyle.SIDE_PADDING, centerY - PouchStyle.ICON_SIZE / 2.0F, PouchStyle.ICON_SIZE);
+            }
+            nameFont.drawString(matrix, row.name(), x + PouchStyle.SIDE_PADDING + PouchStyle.ICON_SIZE + 4.0F, PouchStyle.textY(centerY, 12), ColorUtil.multAlpha(placeholder ? ColorUtil.getText(0.5F) : ColorUtil.WHITE, row.anim()));
+            timeFont.drawString(matrix, row.time(), x + panelWidth - PouchStyle.SIDE_PADDING - timeFont.getStringWidth(row.time()), PouchStyle.textY(centerY, 10), ColorUtil.multAlpha(ColorUtil.getText(0.7F), row.anim()));
+            rowTop += PouchStyle.ROW_HEIGHT * row.anim();
+        }
+
+        this.setWidth((int) Math.ceil(panelWidth));
+        this.setHeight((int) Math.ceil(panelHeight));
     }
 
     public record PouchCoolDown(Item item, StopWatch time, Animation anim) {
