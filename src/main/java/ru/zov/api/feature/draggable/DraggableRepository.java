@@ -7,6 +7,12 @@ import ru.zov.implement.features.draggables.celestial.CelestialCooldowns;
 import ru.zov.implement.features.draggables.celestial.CelestialPotions;
 import ru.zov.implement.features.draggables.celestial.CelestialStaff;
 import ru.zov.implement.features.draggables.celestial.CelestialTarget;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialWatermark;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialKeybinds;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialPotions;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialTarget;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialInfo;
+import ru.zov.implement.features.draggables.oldcelestial.OldCelestialStats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +84,12 @@ public class DraggableRepository {
          new CelestialPotions(),
          new CelestialStaff(),
          new CelestialTarget(),
+         new OldCelestialWatermark(),
+         new OldCelestialKeybinds(),
+         new OldCelestialPotions(),
+         new OldCelestialTarget(),
+         new OldCelestialInfo(),
+         new OldCelestialStats(),
          // Твои новые Javelin модули:
          new JavelinWatermarkDraggable(),
          new JavelinInfoDraggable(),

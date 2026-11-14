@@ -14,6 +14,7 @@ import ru.zov.implement.events.packet.PacketEvent;
 import ru.zov.implement.features.modules.render.Hud;
 import ru.zov.implement.features.modules.render.CelestialHud;
 import ru.zov.implement.features.modules.render.PouchHud;
+import ru.zov.implement.features.modules.render.OldCelestialHud;
 
 public abstract class AbstractDraggable implements Draggable, QuickImports, QuickLogger {
    private String name;
@@ -179,6 +180,11 @@ public abstract class AbstractDraggable implements Draggable, QuickImports, Quic
    }
 
    public boolean canDraw(Hud hud, AbstractDraggable draggable) {
+      if (draggable.getName().startsWith("OldCelestial")) {
+         OldCelestialHud oldHud = OldCelestialHud.getInstance();
+         return oldHud != null && oldHud.isState() && oldHud.elements.isSelected(draggable.getName()) && this.visible();
+      }
+
       if (draggable.getName().startsWith("Celestial")) {
          CelestialHud celestialHud = CelestialHud.getInstance();
          return celestialHud != null && celestialHud.isState() && celestialHud.elements.isSelected(draggable.getName()) && this.visible();
