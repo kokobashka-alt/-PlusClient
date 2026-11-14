@@ -499,20 +499,24 @@ public final class Aura extends Module {
                     targetRotation = new Rotation(
                             targetRotation.getYaw(),
                             predictedPitch.get());
-                }
-            }
-            if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
-                i = 2;
-            } else {
-                i = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 20 : 5;
-            }
-            int i3 = i;
-            if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
-                i2 = 4;
-            } else {
-                i2 = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 5 : 0;
-            }
-            int i4 = i2;
+int i3;
+if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
+    i3 = 2;
+} else if (this.rotationMode.isSelected(AuraRotationMode.FUNTIME)) {
+    i3 = 20;
+} else if (this.rotationMode.isSelected(AuraRotationMode.SHARD)) {
+    i3 = 3;
+} else if (this.rotationMode.isSelected(AuraRotationMode.SHARD_2)) {
+    i3 = 3;
+} else {
+    i3 = 5;
+}
+if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
+    i2 = 4;
+} else {
+    i2 = this.rotationMode.isSelected(AuraRotationMode.FUNTIME) ? 5 : 0;
+}
+int i4 = i2;
             if (!maceDiveAim
                     && !this.rotationMode.isSelected(AuraRotationMode.GRIM)
                     && i4 > 0
