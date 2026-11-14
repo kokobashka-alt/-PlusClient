@@ -1,0 +1,30 @@
+
+name: Create Moonward Folder
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: write
+
+jobs:
+  create-folder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create moonward folder
+        run: |
+          mkdir -p src/main/java/ru/zov/implement/screens/menu/moonward
+          touch src/main/java/ru/zov/implement/screens/menu/moonward/.gitkeep
+
+      - name: Commit folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main/java/ru/zov/implement/screens/menu/moonward/.gitkeep
+          git commit -m "Create moonward package" || exit 0
+          git push
+          
