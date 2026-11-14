@@ -1,5 +1,7 @@
 package ru.zov.implement.features.modules.render;
 
+import java.util.Arrays;
+
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.MathHelper;
@@ -196,23 +198,21 @@ public class TargetESP extends Module {
         float hitSpin = red * red * 360f;
         float time = cardsElapsed;
 
-        // Render3DUtil.drawLine uses the world-space matrix that already subtracts the camera position,
-        // so card positions must be world coordinates, not camera-relative ones.
-        Vec3d rel = target.getLerpedPos(e.partialTicks());
-
-        int faceColor = ColorUtil.multAlpha(0xFFF7F3EA, appear * 0.95f);
-        int redColor = ColorUtil.multAlpha(0xFFD8263A, appear * 0.95f);
-        int blackColor = ColorUtil.multAlpha(0xFF16161C, appear * 0.95f);
-
-        // В карте depth true = с учётом глубины (walls=false), false = сквозь стены
+        // Render3DUtil queues use the world-space matrix that already subtracts the camera,
+        // so card geometry must be in world coordinates.
+        Vec3d base = target.getLerpedPos(e.partialTicks());
+        Vec3d camera = mc.gameRenderer.getCamera().getCameraPos();
         boolean depth = !walls;
 
+        Vec3d[] positions = new Vec3d[cardCount];
+        Vec3d[] axisU = new Vec3d[cardCount];
+        Vec3d[] axisV = new Vec3d[cardCount];
         for (int i = 0; i < cardCount; i++) {
             float phase = (float) i / cardCount;
             double angle = time * 0.9f + phase * Math.PI * 2.0;
             double bob = Math.sin(time * 2.1f + i * 1.7f) * 0.12 * targetHeight / 1.8f;
             double y = targetHeight * 0.55 + bob + Math.sin(angle * 2.0 + i) * 0.05;
-            Vec3d pos = rel.add(Math.cos(angle) * orbitRadius, y, Math.sin(angle) * orbitRadius);
+            positions[i] = base.add(Math.cos(angle) * orbitRadius, y, Math.sin(angle) * orbitRadius);
 
             float yaw = (float) Math.atan2(Math.cos(angle), Math.sin(angle));
             float wobble = (float) Math.toRadians(Math.sin(time * 1.3f + i * 2.3f) * 22.0f + hitSpin);
@@ -226,91 +226,121 @@ public class TargetESP extends Module {
             float cr = (float) Math.cos(roll);
             float sr = (float) Math.sin(roll);
 
-            float hw = CARD_HALF_W * size;
-            float hh = CARD_HALF_H * size;
+            axisU[i] = new Vec3d(cr * cy, sr * cx - cr * sy * sx, sr * sx + cr * sy * cx);
+            axisV[i] = new Vec3d(-sr * cy, cr * cx + sr * sy * sx, cr * sx - sr * sy * cx);
+        }
 
-            Vec3d[] corners = new Vec3d[4];
-            float[][] local = {{-hw, -hh}, {hw, -hh}, {hw, hh}, {-hw, hh}};
-            for (int k = 0; k < 4; k++) {
-                float lx = local[k][0];
-                float ly = local[k][1];
-                float rX = lx * cr - ly * sr;
-                float rY = lx * sr + ly * cr;
-                float yx = rX * cy;
-                float yz = rX * sy;
-                float ty = rY * cx - yz * sx;
-                float tz = rY * sx + yz * cx;
-                corners[k] = pos.add(yx, ty, tz);
-            }
+        Integer[] order = new Integer[cardCount];
+        for (int i = 0; i < cardCount; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, (p, q) -> Double.compare(positions[q].squaredDistanceTo(camera), positions[p].squaredDistanceTo(camera)));
 
-            int suitColor = (i % 4 == 1 || i % 4 == 2) ? redColor : blackColor;
-
-            // Контур
-            for (int k = 0; k < 4; k++) {
-                Render3DUtil.drawLine(corners[k], corners[(k + 1) % 4], faceColor, 1.5f, depth);
-            }
-
-            // Внутренний контур
-            float innerScale = 0.85f;
-            Vec3d[] inner = new Vec3d[4];
-            for (int k = 0; k < 4; k++) {
-                inner[k] = pos.add(
-                        (corners[k].x - pos.x) * innerScale,
-                        (corners[k].y - pos.y) * innerScale,
-                        (corners[k].z - pos.z) * innerScale
-                );
-            }
-            for (int k = 0; k < 4; k++) {
-                Render3DUtil.drawLine(inner[k], inner[(k + 1) % 4], faceColor, 1.0f, depth);
-            }
-
-            // Масть
-            drawSuit(pos, i % 4, size, suitColor, depth);
+        for (int index : order) {
+            drawCard(positions[index], axisU[index], axisV[index], index % 4, size, appear, accent, camera, depth);
         }
     }
 
-    private void drawSuit(Vec3d center, int suit, float size, int color, boolean depth) {
+    private void drawCard(Vec3d pos, Vec3d u, Vec3d v, int suit, float size, float appear, int accent, Vec3d camera, boolean depth) {
+        Vec3d normal = u.crossProduct(v).normalize();
+        boolean front = normal.dotProduct(camera.subtract(pos)) >= 0.0;
+        Vec3d dir = front ? normal : normal.multiply(-1.0);
+
+        double hw = CARD_HALF_W * size;
+        double hh = CARD_HALF_H * size;
+        double rim = 0.014 * size;
+        float alpha = appear * 0.95f;
+        boolean redSuit = suit == 1 || suit == 2;
+        int suitColor = ColorUtil.multAlpha(redSuit ? 0xFFD8263A : 0xFF16161C, alpha);
+
+        cardRect(pos, u, v, dir, 0, -hw - rim, -hh - rim, hw + rim, hh + rim, ColorUtil.multAlpha(0xFF101018, alpha), depth);
+        if (front) {
+            cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, ColorUtil.multAlpha(0xFFF7F3EA, alpha), depth);
+            cardFrame(pos, u, v, dir, 2, hw * 0.84, hh * 0.88, 0.014 * size, suitColor, depth);
+            cardSuit(pos, u, v, dir, 3, suit, 0.0, 0.0, 0.25 * size, false, suitColor, depth);
+            cardSuit(pos, u, v, dir, 3, suit, -hw * 0.62, hh * 0.68, 0.075 * size, false, suitColor, depth);
+            cardSuit(pos, u, v, dir, 3, suit, hw * 0.62, -hh * 0.68, 0.075 * size, true, suitColor, depth);
+        } else {
+            int backColor = ColorUtil.multAlpha(0xFF23285A, alpha);
+            int pattern = ColorUtil.multAlpha(accent, alpha * 0.85f);
+            cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, backColor, depth);
+            cardFrame(pos, u, v, dir, 2, hw * 0.84, hh * 0.88, 0.014 * size, pattern, depth);
+            cardSuit(pos, u, v, dir, 3, 2, 0.0, 0.0, 0.3 * size, false, pattern, depth);
+            cardSuit(pos, u, v, dir, 4, 2, 0.0, 0.0, 0.17 * size, false, backColor, depth);
+        }
+    }
+
+    private static Vec3d cardPoint(Vec3d pos, Vec3d u, Vec3d v, Vec3d dir, int layer, double a, double b) {
+        return pos.add(u.multiply(a)).add(v.multiply(b)).add(dir.multiply(layer * 0.0035));
+    }
+
+    private void cardRect(Vec3d pos, Vec3d u, Vec3d v, Vec3d dir, int layer, double x0, double y0, double x1, double y1, int color, boolean depth) {
+        Render3DUtil.drawQuad(
+                cardPoint(pos, u, v, dir, layer, x0, y0),
+                cardPoint(pos, u, v, dir, layer, x1, y0),
+                cardPoint(pos, u, v, dir, layer, x1, y1),
+                cardPoint(pos, u, v, dir, layer, x0, y1),
+                color, depth);
+    }
+
+    private void cardFrame(Vec3d pos, Vec3d u, Vec3d v, Vec3d dir, int layer, double hw, double hh, double t, int color, boolean depth) {
+        cardRect(pos, u, v, dir, layer, -hw, hh - t, hw, hh, color, depth);
+        cardRect(pos, u, v, dir, layer, -hw, -hh, hw, -hh + t, color, depth);
+        cardRect(pos, u, v, dir, layer, -hw, -hh + t, -hw + t, hh - t, color, depth);
+        cardRect(pos, u, v, dir, layer, hw - t, -hh + t, hw, hh - t, color, depth);
+    }
+
+    private void cardFan(Vec3d pos, Vec3d u, Vec3d v, Vec3d dir, int layer, double cx, double cy, double[][] points, double ox, double oy, double scale, double sign, int color, boolean depth) {
+        Vec3d center = cardPoint(pos, u, v, dir, layer, ox + cx * scale * sign, oy + cy * scale * sign);
+        for (int k = 0; k < points.length; k++) {
+            double[] p = points[k];
+            double[] q = points[(k + 1) % points.length];
+            Vec3d a = cardPoint(pos, u, v, dir, layer, ox + p[0] * scale * sign, oy + p[1] * scale * sign);
+            Vec3d b = cardPoint(pos, u, v, dir, layer, ox + q[0] * scale * sign, oy + q[1] * scale * sign);
+            Render3DUtil.drawQuad(center, a, b, b, color, depth);
+        }
+    }
+
+    private static double[][] circle(double cx, double cy, double radius, int n) {
+        double[][] pts = new double[n][2];
+        for (int k = 0; k < n; k++) {
+            double ang = Math.PI * 2.0 * k / n;
+            pts[k][0] = cx + Math.cos(ang) * radius;
+            pts[k][1] = cy + Math.sin(ang) * radius;
+        }
+        return pts;
+    }
+
+    private static double[][] heart(boolean flipped) {
+        int n = 28;
+        double[][] pts = new double[n][2];
+        for (int k = 0; k < n; k++) {
+            double t = Math.PI * 2.0 * k / n;
+            double x = 16.0 * Math.pow(Math.sin(t), 3) / 17.0;
+            double y = (13.0 * Math.cos(t) - 5.0 * Math.cos(2 * t) - 2.0 * Math.cos(3 * t) - Math.cos(4 * t) + 2.5) / 17.0;
+            pts[k][0] = x;
+            pts[k][1] = flipped ? -y : y;
+        }
+        return pts;
+    }
+
+    private void cardSuit(Vec3d pos, Vec3d u, Vec3d v, Vec3d dir, int layer, int suit, double ox, double oy, double scale, boolean rotated, int color, boolean depth) {
+        double sign = rotated ? -1.0 : 1.0;
         switch (suit) {
-            case 1 -> { // hearts
-                float s = size * 0.12f;
-                Vec3d leftTop = center.add(-s * 0.7f, s * 0.5f, 0);
-                Vec3d rightTop = center.add(s * 0.7f, s * 0.5f, 0);
-                Vec3d bottom = center.add(0, -s * 0.6f, 0);
-                Render3DUtil.drawLine(leftTop, bottom, color, 1.0f, depth);
-                Render3DUtil.drawLine(rightTop, bottom, color, 1.0f, depth);
-                Render3DUtil.drawLine(leftTop, rightTop, color, 1.0f, depth);
+            case 1 -> cardFan(pos, u, v, dir, layer, 0.0, 0.05, heart(false), ox, oy, scale, sign, color, depth);
+            case 2 -> cardFan(pos, u, v, dir, layer, 0.0, 0.0,
+                    new double[][]{{0.0, 0.95}, {0.62, 0.0}, {0.0, -0.95}, {-0.62, 0.0}}, ox, oy, scale, sign, color, depth);
+            case 0 -> {
+                cardFan(pos, u, v, dir, layer, 0.0, -0.05, heart(true), ox, oy, scale, sign, color, depth);
+                cardFan(pos, u, v, dir, layer, 0.0, -0.8,
+                        new double[][]{{0.0, -0.4}, {-0.24, -1.0}, {0.24, -1.0}}, ox, oy, scale, sign, color, depth);
             }
-            case 2 -> { // diamonds
-                float s = size * 0.12f;
-                Vec3d top = center.add(0, s, 0);
-                Vec3d bottom = center.add(0, -s, 0);
-                Vec3d left = center.add(-s * 0.6f, 0, 0);
-                Vec3d right = center.add(s * 0.6f, 0, 0);
-                Render3DUtil.drawLine(top, right, color, 1.0f, depth);
-                Render3DUtil.drawLine(right, bottom, color, 1.0f, depth);
-                Render3DUtil.drawLine(bottom, left, color, 1.0f, depth);
-                Render3DUtil.drawLine(left, top, color, 1.0f, depth);
-            }
-            case 0 -> { // spades
-                float s = size * 0.12f;
-                Vec3d top = center.add(0, s, 0);
-                Vec3d left = center.add(-s * 0.7f, -s * 0.5f, 0);
-                Vec3d right = center.add(s * 0.7f, -s * 0.5f, 0);
-                Render3DUtil.drawLine(top, left, color, 1.0f, depth);
-                Render3DUtil.drawLine(left, right, color, 1.0f, depth);
-                Render3DUtil.drawLine(right, top, color, 1.0f, depth);
-                Render3DUtil.drawLine(center.add(0, -s * 0.5f, 0), center.add(0, -s, 0), color, 1.0f, depth);
-            }
-            case 3 -> { // clubs
-                float s = size * 0.09f;
-                Vec3d top = center.add(0, s, 0);
-                Vec3d left = center.add(-s * 1.2f, -s * 0.6f, 0);
-                Vec3d right = center.add(s * 1.2f, -s * 0.6f, 0);
-                Vec3d bottom = center.add(0, -s * 1.2f, 0);
-                Render3DUtil.drawLine(top, left, color, 1.0f, depth);
-                Render3DUtil.drawLine(top, right, color, 1.0f, depth);
-                Render3DUtil.drawLine(left, bottom, color, 1.0f, depth);
-                Render3DUtil.drawLine(right, bottom, color, 1.0f, depth);
+            default -> {
+                cardFan(pos, u, v, dir, layer, 0.0, 0.4, circle(0.0, 0.42, 0.36, 14), ox, oy, scale, sign, color, depth);
+                cardFan(pos, u, v, dir, layer, -0.4, -0.2, circle(-0.4, -0.2, 0.36, 14), ox, oy, scale, sign, color, depth);
+                cardFan(pos, u, v, dir, layer, 0.4, -0.2, circle(0.4, -0.2, 0.36, 14), ox, oy, scale, sign, color, depth);
+                cardFan(pos, u, v, dir, layer, 0.0, -0.6,
+                        new double[][]{{0.0, -0.1}, {-0.2, -1.0}, {0.2, -1.0}}, ox, oy, scale, sign, color, depth);
             }
         }
     }
