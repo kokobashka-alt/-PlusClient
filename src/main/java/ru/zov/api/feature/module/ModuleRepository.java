@@ -79,6 +79,8 @@ import ru.zov.implement.features.modules.render.SwingAnimations;
 import ru.zov.implement.features.modules.render.TalismanIndication;
 import ru.zov.implement.features.modules.render.Ambience;
 import ru.zov.implement.features.modules.render.Atmosphere;
+import ru.zov.implement.features.modules.combat.MaceHelper;
+import ru.zov.implement.features.modules.misc.HPFixer;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -161,7 +163,9 @@ public class ModuleRepository {
             new SwingAnimations(),
             new Ambience(),
             new Atmosphere(),
-            new JavelinHud()
+            new JavelinHud(),
+            new MaceHelper(),
+            new HPFixer()
         );
     }
 
