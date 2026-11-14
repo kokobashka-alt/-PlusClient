@@ -26,7 +26,7 @@ import java.util.Random;
  * ВАЖНО: в Aura.updateRotation() для SHARD должно быть i3 = 3
  * (тиков на наводку), иначе ротация будет ждать 5 тиков.
  */
-public final class ShardRotationMode extends RotationMode {
+public final class ShardAcRotationMode extends RotationMode {
 
     // === Константы (ht3-ускоренные) ===
     private static final float REACTION_MIN = 0.4f;
@@ -54,7 +54,7 @@ public final class ShardRotationMode extends RotationMode {
     private float wobbleVelY;
     private float wobbleVelP;
 
-    public ShardRotationMode() {
+    public ShardAcRotationMode() {
         super("Shard");
     }
 

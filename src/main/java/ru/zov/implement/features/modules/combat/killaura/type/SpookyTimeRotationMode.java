@@ -115,14 +115,14 @@ public final class SpookyTimeRotationMode extends RotationMode {
         // Точка прицеливания
         boolean higher = maceMode && (
                 living.getY() >= mc.player.getY() - 0.3
-                        || living.getY() - living.prevY > 0.05
+                        || living.getY() - living.lastY > 0.05
         );
         double mul = maceMode ? (higher ? 0.25 : 0.9) : heightMul;
         double ox = maceMode ? 0.0 : offsetX;
         double oz = maceMode ? 0.0 : offsetZ;
 
         Vec3d eye = mc.player.getCameraPosVec(1.0f);
-        Vec3d point = living.getPos().add(
+        Vec3d point = living.getEntityPos().add(
                 ox,
                 MathHelper.clamp(living.getHeight() * mul, 0.1, Math.max(0.1, living.getHeight() - 0.1)),
                 oz
