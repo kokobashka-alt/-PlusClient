@@ -83,6 +83,7 @@ import ru.zov.implement.features.modules.combat.MaceHelper;
 import ru.zov.implement.features.modules.misc.HPFixer;
 import ru.zov.implement.features.modules.movement.AirStuck;
 import ru.zov.implement.features.modules.combat.PacketCriticals;
+import ru.zov.implement.features.modules.combat.AntiTotem;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -169,7 +170,8 @@ public class ModuleRepository {
             new MaceHelper(),
             new HPFixer(),
             new AirStuck(),
-            new PacketCriticals()
+            new PacketCriticals(),
+            new AntiTotem()
         );
     }
 
