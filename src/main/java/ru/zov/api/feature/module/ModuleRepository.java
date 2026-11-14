@@ -84,6 +84,7 @@ import ru.zov.implement.features.modules.misc.HPFixer;
 import ru.zov.implement.features.modules.movement.AirStuck;
 import ru.zov.implement.features.modules.combat.PacketCriticals;
 import ru.zov.implement.features.modules.combat.AntiTotem;
+import ru.zov.implement.features.modules.render.OldCelestialHud;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -171,7 +172,8 @@ public class ModuleRepository {
             new HPFixer(),
             new AirStuck(),
             new PacketCriticals(),
-            new AntiTotem()
+            new AntiTotem(),
+            new OldCelestialHud()
         );
     }
 
