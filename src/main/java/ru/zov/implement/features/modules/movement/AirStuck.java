@@ -69,7 +69,7 @@ public class AirStuck extends Module {
       }
 
       if (this.mode.isSelected("Обычный")) {
-         this.freezePosition = mc.player.getPos();
+         this.freezePosition = mc.player.getEntityPos();
          this.frozen = true;
       }
    }
@@ -128,7 +128,7 @@ public class AirStuck extends Module {
       }
 
       if (this.mode.isSelected("LonyGrief") && !this.frozen && mc.player.fallDistance > 0.0F && mc.player.getVelocity().y < 0.0) {
-         this.freezePosition = mc.player.getPos();
+         this.freezePosition = mc.player.getEntityPos();
          this.frozen = true;
       }
 
