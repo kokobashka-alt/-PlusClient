@@ -11,7 +11,7 @@ final class HpParser {
 
     static Float parse(String raw) {
         if (raw == null || raw.isEmpty()) return null;
-        String text = strip(raw).replace("❤", " ").replace("♥", " ")
+        String text = strip(raw).replace("❤", " ").replace("♥", " ").replace("♡", " ")
                 .replace("HP", " ").replace("hp", " ").replace("хп", " ").replace("Хп", " ").trim();
         Matcher m = NUMBER.matcher(text);
         Float last = null;
