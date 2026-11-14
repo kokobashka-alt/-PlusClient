@@ -1,8 +1,11 @@
 package ru.zov.implement.features.modules.combat;
 
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.util.Hand;
 
 import ru.zov.api.event.EventHandler;
 import ru.zov.api.feature.module.Module;
@@ -10,17 +13,19 @@ import ru.zov.api.feature.module.ModuleCategory;
 import ru.zov.api.feature.module.setting.Setting;
 import ru.zov.api.feature.module.setting.implement.SelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
+import ru.zov.common.util.item.PlayerInventoryUtil;
 import ru.zov.common.util.other.Instance;
+import ru.zov.implement.events.player.AttackEvent;
 import ru.zov.implement.events.player.TickEvent;
 
 /**
- * Отдельный свап-хелпер булавы, независимый от Aura.
+ * Отдельный свап-хелпер булавы.
  *
- *  - Breach: держит булаву, пока падаешь и пока не ударил.
- *  - Swap: перед атакой берёт булаву, после — возвращает слот.
+ *  - Breach: пока падаешь (velocity.y < 0) и булава не в руке — свапает её.
+ *            После удара держит holdTicks тиков и возвращает слот.
+ *  - Swap:   перед ударом свапает булаву, после удара возвращает слот.
  *
- * Оригинал (MaceHelper из 1.21.4) использовал PlayerActionUtil.windowClick
- * (SWAP) / PlayerInventoryUtil.swapHand — здесь то же самое, но под ru.zov.
+ * Подписан на AttackEvent, так что ручной вызов из Aura не нужен.
  */
 public class MaceHelper extends Module {
 
@@ -44,11 +49,9 @@ public class MaceHelper extends Module {
         return (MaceHelper) Instance.get(MaceHelper.class);
     }
 
-    // Состояние
-    private int heldSlot = -1;       // слот, который держим в hotbar
-    private int previousSlot = -1;   // слот, который был до свапа (для return)
-    private int waitUntilTick = 0;   // после какого тика можно вернуть слот
-    private boolean breaching;       // Breach активен
+    private int previousSlot = -1;
+    private int waitUntilTick = 0;
+    private boolean breaching;
 
     public MaceHelper() {
         super("MaceHelper", "Свап булавы перед ударом", ModuleCategory.COMBAT);
@@ -57,7 +60,6 @@ public class MaceHelper extends Module {
 
     @Override
     public void activate() {
-        heldSlot = -1;
         previousSlot = -1;
         breaching = false;
         waitUntilTick = 0;
@@ -68,16 +70,21 @@ public class MaceHelper extends Module {
         restoreSlot();
     }
 
-    /** Вызывается из Aura/TriggerBot перед ударом. */
-    public void onAttack() {
+    /**
+     * Срабатывает перед ударом (на AttackEvent).
+     * Vanilla-свап делаем ДО swing, чтобы удар пришёлся уже булавой.
+     */
+    @EventHandler
+    public void onAttack(AttackEvent e) {
         if (mc.player == null) return;
+        Entity target = e.getEntity();
+        if (!(target instanceof LivingEntity) || target == mc.player) return;
+
         if (mode.isSelected("Swap")) {
             swapToMace();
         } else {
-            // Breach: если булава не в руке — свапнуть; иначе просто оставить
-            if (!isHoldingMace()) {
-                swapToMace();
-            }
+            // Breach: свапаем перед ударом, если булава не в руке
+            if (!isHoldingMace()) swapToMace();
             breaching = true;
             waitUntilTick = mc.player.age + (int) holdTicks.getValue();
         }
@@ -87,16 +94,17 @@ public class MaceHelper extends Module {
     public void onTick(TickEvent e) {
         if (mc.player == null) return;
 
-        if (mode.isSelected("Breach")) {
-            // Если падаем вниз (velocity.y < 0) и булава не в руке — свапаем
-            if (mc.player.getVelocity().y < 0 && !isHoldingMace()) {
-                swapToMace();
-            }
-            // Если ударил — ждём holdTicks тиков и возвращаем
-            if (breaching && mc.player.age >= waitUntilTick) {
-                restoreSlot();
-                breaching = false;
-            }
+        if (!mode.isSelected("Breach")) return;
+
+        // Падаем и булава не в руке → свап
+        if (mc.player.getVelocity().y < 0 && !isHoldingMace()) {
+            swapToMace();
+        }
+
+        // Отпустили удар — вернуть слот через holdTicks тиков
+        if (breaching && mc.player.age >= waitUntilTick) {
+            restoreSlot();
+            breaching = false;
         }
     }
 
@@ -105,8 +113,7 @@ public class MaceHelper extends Module {
     }
 
     private void swapToMace() {
-        if (mc.player == null) return;
-        if (isHoldingMace()) return;
+        if (mc.player == null || isHoldingMace()) return;
 
         int current = mc.player.getInventory().selectedSlot;
         int mace = findMaceSlot();
@@ -115,33 +122,34 @@ public class MaceHelper extends Module {
         if (previousSlot == -1) previousSlot = current;
 
         if (swapMode.isSelected("Funtime")) {
-            // Silent swap через PlayerInventoryUtil.swapHand — не переключает hotbar визуально
-            ru.zov.common.util.item.PlayerInventoryUtil.swapHand(
-                    ru.zov.common.util.item.PlayerInventoryUtil.slots()
-                            .filter(s -> s.getStack().isOf(Items.MACE))
-                            .findFirst()
-                            .orElse(null),
-                    net.minecraft.util.Hand.MAIN_HAND,
-                    true
-            );
+            var slotOpt = PlayerInventoryUtil.slots()
+                    .filter(s -> s.getStack().isOf(Items.MACE))
+                    .findFirst();
+            if (slotOpt.isPresent()) {
+                PlayerInventoryUtil.swapHand(slotOpt.get(), Hand.MAIN_HAND, true);
+            }
         } else {
-            // Vanilla — обычная смена слота
+            // Vanilla
             mc.player.getInventory().selectedSlot = mace;
-            mc.player.networkHandler.sendPacket(
-                    new net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket(mace)
-            );
+            if (mc.player.networkHandler != null) {
+                mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(mace));
+            }
         }
-        heldSlot = mace;
     }
 
     private void restoreSlot() {
         if (mc.player == null || previousSlot == -1) return;
+
+        if (swapMode.isSelected("Funtime") && !mode.isSelected("Swap")) {
+            // Funtime + Breach: вернуть предыдущий слот через silent swap не получится,
+            // потому что мы уже переключили selectedSlot. Просто ставим selectedSlot.
+        }
+
         mc.player.getInventory().selectedSlot = previousSlot;
-        mc.player.networkHandler.sendPacket(
-                new net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket(previousSlot)
-        );
+        if (mc.player.networkHandler != null) {
+            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(previousSlot));
+        }
         previousSlot = -1;
-        heldSlot = -1;
     }
 
     private int findMaceSlot() {
