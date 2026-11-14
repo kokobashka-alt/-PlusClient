@@ -7,7 +7,6 @@ import ru.zov.implement.features.modules.combat.AntiBot;
 import ru.zov.implement.features.modules.combat.Aura;
 import ru.zov.implement.features.modules.combat.AutoArmor;
 import ru.zov.implement.features.modules.combat.AutoCrystal;
-import ru.zov.implement.features.modules.combat.AntiTotem;
 import ru.zov.implement.features.modules.combat.AutoSwap;
 import ru.zov.implement.features.modules.combat.AutoTotem;
 import ru.zov.implement.features.modules.combat.AutoWeb;
@@ -82,6 +81,8 @@ import ru.zov.implement.features.modules.render.Ambience;
 import ru.zov.implement.features.modules.render.Atmosphere;
 import ru.zov.implement.features.modules.combat.MaceHelper;
 import ru.zov.implement.features.modules.misc.HPFixer;
+import ru.zov.implement.features.modules.movement.AirStuck;
+import ru.zov.implement.features.modules.combat.PacketCriticals;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -100,7 +101,6 @@ public class ModuleRepository {
             new Aura(),
             new Speed(),
             new AutoSwap(),
-            new AntiTotem(),
             new NoFriendDamage(),
             new AntiBot(),
             new AutoCrystal(),
@@ -167,7 +167,9 @@ public class ModuleRepository {
             new Atmosphere(),
             new JavelinHud(),
             new MaceHelper(),
-            new HPFixer()
+            new HPFixer(),
+            new AirStuck(),
+            new PacketCriticals()
         );
     }
 
