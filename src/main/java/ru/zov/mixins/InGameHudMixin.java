@@ -116,7 +116,9 @@ public void onRender(DrawContext context, RenderTickCounter tickCounter, Callbac
       cancellable = true
    )
    public void renderStatusEffectOverlayHook(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-      if (this.hud.isState() && this.hud.interfaceSettings.isSelected("Potions")) {
+      ru.zov.implement.features.modules.render.OldCelestialHud oldHud = ru.zov.implement.features.modules.render.OldCelestialHud.getInstance();
+      boolean oldPotions = oldHud != null && oldHud.isState() && oldHud.elements.isSelected("OldCelestialPotions");
+      if (oldPotions || this.hud.isState() && this.hud.interfaceSettings.isSelected("Potions")) {
          ci.cancel();
       }
 
