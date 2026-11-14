@@ -7,6 +7,7 @@ import ru.zov.implement.features.modules.combat.AntiBot;
 import ru.zov.implement.features.modules.combat.Aura;
 import ru.zov.implement.features.modules.combat.AutoArmor;
 import ru.zov.implement.features.modules.combat.AutoCrystal;
+import ru.zov.implement.features.modules.combat.AntiTotem;
 import ru.zov.implement.features.modules.combat.AutoSwap;
 import ru.zov.implement.features.modules.combat.AutoTotem;
 import ru.zov.implement.features.modules.combat.AutoWeb;
@@ -99,6 +100,7 @@ public class ModuleRepository {
             new Aura(),
             new Speed(),
             new AutoSwap(),
+            new AntiTotem(),
             new NoFriendDamage(),
             new AntiBot(),
             new AutoCrystal(),
