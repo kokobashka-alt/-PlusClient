@@ -328,7 +328,7 @@ public final class Aura extends Module {
                 if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
                     EntityStatusS2CPacket entityStatusS2CPacket = packet;
                     if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
-                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), null);
+                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
                     }
                 }
             }
