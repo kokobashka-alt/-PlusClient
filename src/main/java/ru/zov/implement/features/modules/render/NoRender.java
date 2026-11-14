@@ -47,7 +47,7 @@ public class NoRender extends Module {
             .selected();
 
     public NoRender() {
-        super("NoRender", "Отключение рендера отдельных элементов", ModuleCategory.RENDER);
+        super("NoRender", "NoRender", ModuleCategory.RENDER);
         this.setup(new Setting[]{modeSetting});
     }
 
