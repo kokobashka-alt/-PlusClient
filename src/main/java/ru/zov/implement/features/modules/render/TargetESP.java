@@ -27,7 +27,7 @@ public class TargetESP extends Module {
 
     private final SelectSetting mode =
             new SelectSetting("Режим", "Стиль Target ESP")
-                    .value("Ромб", "Кольцо", "Души", "Цепи", "Карты");
+                    .value("Ромб", "Кольцо", "Души", "Цепи", "Карты", "Молния");
 
     private final BooleanSetting hurtColor =
             new BooleanSetting("Окрашивание при ударе", "Краснеет, когда цель получает урон")
@@ -54,6 +54,8 @@ public class TargetESP extends Module {
                     .setValue(0.5f)
                     .range(0.1f, 1.5f)
                     .visible(() -> mode.isSelected("Цепи") || mode.isSelected("Карты"));
+
+    private final LightningRenderer lightning = new LightningRenderer();
 
     private LivingEntity target;
     private long lastHitTime;
@@ -118,10 +120,12 @@ public class TargetESP extends Module {
     @EventHandler
     public void onWorldRender(WorldRenderEvent e) {
         if (target == null || mc.player == null || mc.world == null) {
+            lightning.reset();
             return;
         }
         float shown = MathHelper.lerp(e.partialTicks(), prevAnim, anim);
         if (shown <= 0.01F) {
+            lightning.reset();
             return;
         }
 
@@ -135,6 +139,7 @@ public class TargetESP extends Module {
             case "Души" -> Render3DUtil.drawGhosts(target, shown, red, 1.0F, walls, color);
             case "Цепи" -> drawChains(e, shown);
             case "Карты" -> drawCards(e, shown, red, walls, color);
+            case "Молния" -> lightning.render(target, target.getLerpedPos(e.partialTicks()), shown, red, color, !walls);
             default -> {
             }
         }
