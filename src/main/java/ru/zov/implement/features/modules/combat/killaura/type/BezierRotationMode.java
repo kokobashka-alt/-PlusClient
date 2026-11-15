@@ -1,265 +1,286 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
-
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import ru.zov.implement.features.modules.combat.Aura;
-import ru.zov.implement.features.modules.combat.killaura.AuraRuntime;
+import ru.zov.implement.features.modules.combat.killaura.Mc;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
+import ru.zov.implement.features.modules.combat.killaura.neuro.BezierRecorder;
+import ru.zov.implement.features.modules.combat.killaura.neuro.HumanStep;
+import ru.zov.implement.features.modules.combat.killaura.neuro.Quantizer;
+import ru.zov.implement.features.modules.combat.killaura.neuro.RawSample;
+import ru.zov.implement.features.modules.combat.killaura.neuro.Trainer;
+import ru.zov.implement.features.modules.combat.killaura.neuro.TrainingJob;
 import ru.zov.implement.features.modules.combat.killaura.util.MathUtil;
 
 /**
- * Humanized rotation for Aura: target selection and attacks stay with Aura, this mode only decides how the
- * view moves toward the aim point each tick.
+ * Neural rotation: a GRU trained on your own fights, either by the built-in trainer (Trainer/TrainingJob, runs in
+ * the client on a background thread) or by tools/train_bezier.py. The model predicts the yaw and pitch step of
+ * every tick as a Gaussian and one sample is taken from it. The step is snapped to the mouse sensitivity grid.
  *
- * Movement is a damped second-order controller (stiffness, damping, speed cap) driven by the angular error to
- * a reaction-delayed copy of the target rotation, plus a slow in-hitbox aim drift (Ornstein-Uhlenbeck),
- * filtered hand tremor, a short disturbance after every attack and occasional micro-holds. The controller
- * parameters come from one of five archetypes (settle, smooth, snappy, drift, bursty); a new archetype with
- * freshly rolled parameters is chosen on every new target and every 40 to 140 ticks, and the live parameters
- * blend toward the new ones so that patterns change without discontinuities. Output deltas are quantized to the
- * mouse sensitivity grid with the sub-step remainder carried over, like integer mouse counts.
+ * <p>Inputs are built by {@link BezierFeatures}, the same code the recorder uses. Weights are read from
+ * bezier_gru.bin in the game directory and reloaded when the file changes. Without a valid file, and for the
+ * return-to-camera phase ({@code entity == null}), a damped human-like pursuit drives the rotation.
  *
- * Untested against any anticheat: whether a given server flags it depends on checks that are not known here.
+ * <p>File format and validation live in {@link ru.zov.implement.features.modules.combat.killaura.neuro.Gru}.
+ * Nothing here is known to bypass any anticheat; that has to be measured on the server you play.
  */
 public class BezierRotationMode extends RotationMode {
-    private static final int HISTORY = 8;
+    private static final Path MODEL_FILE = Path.of("bezier_gru.bin");
+    private static final Path DATASET_FILE = Path.of("bezier_dataset.csv");
+    private static final int RECHECK_CALLS = 200;
+    private static final float TEMPERATURE = 1.0F;
     private static final float PITCH_LIMIT = 89.0F;
-    private static final float BLEND_PER_TICK = 0.12F;
-    private static final int ARCHETYPES = 5;
 
-    private static final class Params {
-        float omega;
-        float zeta;
-        float maxSpeed;
-        float tremor;
-        float drift;
-        float pitchGain;
-        float reaction;
-        float kick;
-        float holdChance;
+    private final HumanStep human = new HumanStep();
+    private final BezierFeatures features = new BezierFeatures();
+    private final BezierRecorder recorder = new BezierRecorder(DATASET_FILE);
+    private final Quantizer quantizer = new Quantizer();
+    private final Random rng = new Random();
+    private final float[] input = new float[BezierFeatures.COUNT];
+    private final float[] headOut = new float[4];
+    private final float[] step = new float[2];
+    private final float[] humanWant = new float[2];
 
-        void copyFrom(Params other) {
-            omega = other.omega;
-            zeta = other.zeta;
-            maxSpeed = other.maxSpeed;
-            tremor = other.tremor;
-            drift = other.drift;
-            pitchGain = other.pitchGain;
-            reaction = other.reaction;
-            kick = other.kick;
-            holdChance = other.holdChance;
-        }
-
-        void blendToward(Params goal, float t) {
-            omega += (goal.omega - omega) * t;
-            zeta += (goal.zeta - zeta) * t;
-            maxSpeed += (goal.maxSpeed - maxSpeed) * t;
-            tremor += (goal.tremor - tremor) * t;
-            drift += (goal.drift - drift) * t;
-            pitchGain += (goal.pitchGain - pitchGain) * t;
-            reaction += (goal.reaction - reaction) * t;
-            kick += (goal.kick - kick) * t;
-            holdChance += (goal.holdChance - holdChance) * t;
-        }
-    }
-
-    private final Random rng = new Random(System.nanoTime());
-    private final Params live = new Params();
-    private final Params goal = new Params();
-    private final float[] historyYaw = new float[HISTORY];
-    private final float[] historyPitch = new float[HISTORY];
-    private final float[] residual = new float[2];
-
-    private Entity trackedTarget;
-    private int archetype = -1;
-    private int ticksToSwitch;
-    private int historyHead;
-    private int historyCount;
-    private int holdTicks;
-    private int lastHitCounter;
-    private float velocityYaw;
-    private float velocityPitch;
-    private float tremorYaw;
-    private float tremorPitch;
-    private float driftYaw;
-    private float driftPitch;
+    private BezierGruModel model;
+    private TrainingJob training;
+    private long modelStamp = Long.MIN_VALUE;
+    private int calls;
+    private int nextCheck;
+    private String lastNotice = "";
+    private Entity tracked;
+    private float prevYaw;
+    private float prevPitch;
 
     public BezierRotationMode() {
-        super("Human");
-    }
-
-    private float range(float min, float max) {
-        return min + rng.nextFloat() * (max - min);
-    }
-
-    private void rollGoal(int kind) {
-        switch (kind) {
-            case 0 -> fill(0.28F, 0.42F, 0.72F, 0.90F, 16.0F, 26.0F, 0.03F, 0.07F, 0.15F, 0.30F, 0.60F, 0.85F, 1.0F, 3.0F, 0.15F, 0.35F, 0.00F, 0.02F);
-            case 1 -> fill(0.18F, 0.30F, 0.95F, 1.20F, 10.0F, 18.0F, 0.02F, 0.05F, 0.10F, 0.25F, 0.70F, 0.95F, 2.0F, 4.0F, 0.10F, 0.25F, 0.00F, 0.00F);
-            case 2 -> fill(0.45F, 0.60F, 0.70F, 0.85F, 24.0F, 40.0F, 0.04F, 0.09F, 0.10F, 0.20F, 0.50F, 0.75F, 1.0F, 2.0F, 0.25F, 0.50F, 0.00F, 0.01F);
-            case 3 -> fill(0.20F, 0.32F, 0.80F, 1.00F, 12.0F, 20.0F, 0.06F, 0.12F, 0.35F, 0.60F, 0.45F, 0.70F, 2.0F, 4.0F, 0.20F, 0.40F, 0.02F, 0.04F);
-            default -> fill(0.30F, 0.50F, 0.75F, 0.95F, 14.0F, 28.0F, 0.03F, 0.08F, 0.15F, 0.35F, 0.55F, 0.80F, 1.0F, 3.0F, 0.20F, 0.45F, 0.08F, 0.14F);
-        }
-    }
-
-    private void fill(float oMin, float oMax, float zMin, float zMax, float sMin, float sMax, float tMin, float tMax,
-                      float dMin, float dMax, float pMin, float pMax, float rMin, float rMax, float kMin, float kMax,
-                      float hMin, float hMax) {
-        goal.omega = range(oMin, oMax);
-        goal.zeta = range(zMin, zMax);
-        goal.maxSpeed = range(sMin, sMax);
-        goal.tremor = range(tMin, tMax);
-        goal.drift = range(dMin, dMax);
-        goal.pitchGain = range(pMin, pMax);
-        goal.reaction = range(rMin, rMax);
-        goal.kick = range(kMin, kMax);
-        goal.holdChance = range(hMin, hMax);
-    }
-
-    private void pickArchetype(boolean snapLive) {
-        int next;
-        do {
-            next = rng.nextInt(ARCHETYPES);
-        } while (next == archetype && ARCHETYPES > 1);
-        archetype = next;
-        rollGoal(next);
-        ticksToSwitch = 40 + rng.nextInt(100);
-        if (snapLive) {
-            live.copyFrom(goal);
-        }
-    }
-
-    private void acquire(Entity entity, Aura aura) {
-        trackedTarget = entity;
-        lastHitCounter = aura.hitCounter();
-        historyCount = 0;
-        historyHead = 0;
-        velocityYaw = 0.0F;
-        velocityPitch = 0.0F;
-        residual[0] = 0.0F;
-        residual[1] = 0.0F;
-        driftYaw = 0.0F;
-        driftPitch = 0.0F;
-        pickArchetype(true);
-        holdTicks = Math.round(live.reaction) + rng.nextInt(2);
-    }
-
-    private void pushHistory(Rotation target) {
-        historyHead = (historyHead + 1) % HISTORY;
-        historyYaw[historyHead] = target.getYaw();
-        historyPitch[historyHead] = target.getPitch();
-        historyCount = Math.min(historyCount + 1, HISTORY);
-    }
-
-    private int delayedIndex() {
-        int back = Math.min(Math.max(Math.round(live.reaction), 0), historyCount - 1);
-        return ((historyHead - back) % HISTORY + HISTORY) % HISTORY;
-    }
-
-    private static float controller(float error, float velocity, float omega, float zeta, float maxSpeed) {
-        float acceleration = omega * omega * error - 2.0F * zeta * omega * velocity;
-        float next = velocity + acceleration;
-        float limit = maxSpeed * MathHelper.clamp(0.25F + Math.abs(error) / 25.0F, 0.25F, 1.0F);
-        return MathHelper.clamp(next, -limit, limit);
-    }
-
-    /** Snaps a movement to whole mouse counts, carrying the remainder to the next tick. */
-    private float quantize(int axis, float desired, double step) {
-        double pending = desired + residual[axis];
-        long counts = Math.round(pending / step);
-        double applied = counts * step;
-        residual[axis] = (float) (pending - applied);
-        if (counts == 0) {
-            return 0.0F;
-        }
-        // The framework truncates delta / step; a hair above the exact multiple keeps the count intact.
-        return (float) (applied + Math.signum(applied) * step * 0.01);
-    }
-
-    private Rotation apply(Rotation current, float moveYaw, float movePitch, double step) {
-        float dy = quantize(0, moveYaw, step);
-        float dp = quantize(1, movePitch, step);
-        return new Rotation(
-                MathHelper.wrapDegrees(current.getYaw() + dy),
-                MathHelper.clamp(current.getPitch() + dp, -PITCH_LIMIT, PITCH_LIMIT));
-    }
-
-    private Rotation returnToCamera(Rotation current, Rotation target, double step) {
-        trackedTarget = null;
-        archetype = -1;
-        holdTicks = 0;
-        driftYaw = 0.0F;
-        driftPitch = 0.0F;
-        tremorYaw = 0.0F;
-        tremorPitch = 0.0F;
-        float yawError = MathHelper.wrapDegrees(target.getYaw() - current.getYaw());
-        float pitchError = MathHelper.clamp(target.getPitch(), -PITCH_LIMIT, PITCH_LIMIT) - current.getPitch();
-        velocityYaw = controller(yawError, velocityYaw, 0.45F, 1.0F, 25.0F);
-        velocityPitch = controller(pitchError, velocityPitch, 0.45F, 1.0F, 14.0F);
-        return apply(current, velocityYaw, velocityPitch, step);
+        super("Bezier");
     }
 
     @Override
     public Rotation process(Rotation current, Rotation target, Vec3d vec3d, Entity entity) {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
-        Aura aura = (Aura) AuraRuntime.INSTANCE.moduleRepository().get(Aura.class);
-        double step = MathUtil.computeGcd();
-        if (player == null || aura == null || !(step > 1.0E-4)) {
+        double gcd = MathUtil.computeGcd();
+        if (player == null || current == null || target == null || !(gcd > 1.0E-4)) {
             return current;
         }
-        if (entity == null) {
-            return returnToCamera(current, target, step);
-        }
-        if (trackedTarget != entity) {
-            acquire(entity, aura);
+        if (!Float.isFinite(current.getYaw()) || !Float.isFinite(current.getPitch())) {
+            return current;
         }
 
-        if (aura.hitCounter() != lastHitCounter) {
-            lastHitCounter = aura.hitCounter();
-            velocityYaw = velocityYaw * 0.4F + (float) rng.nextGaussian() * live.kick;
-            velocityPitch = velocityPitch * 0.4F + (float) rng.nextGaussian() * live.kick * 0.5F;
+        this.drainTraining(player);
+        this.calls++;
+        this.refreshModel(player);
+        this.features.tick();
+
+        float nowYaw = current.getYaw();
+        float nowPitch = current.getPitch();
+        LivingEntity living = entity instanceof LivingEntity le ? le : null;
+
+        if (this.recorder.isRecording()) {
+            if (living == null) {
+                this.recorder.tick(-1, player.getYaw(), player.getPitch(), null);
+            } else {
+                RawSample sample = this.features.sample(nowYaw, nowPitch, target.getYaw(), target.getPitch(),
+                        player, living, this.prevYaw, this.prevPitch);
+                // Labels come from the player's own aim, so record with the rotation off or on Human.
+                this.recorder.tick(living.getId(), player.getYaw(), player.getPitch(), sample);
+            }
         }
 
-        pushHistory(target);
-        if (--ticksToSwitch <= 0) {
-            pickArchetype(false);
-        }
-        live.blendToward(goal, BLEND_PER_TICK);
-
-        int index = delayedIndex();
-        float distance = Math.max(player.distanceTo(entity), 0.5F);
-        float maxDriftYaw = (float) Math.toDegrees(Math.atan2(entity.getWidth() * 0.35F, distance)) * live.drift;
-        float maxDriftPitch = (float) Math.toDegrees(Math.atan2(entity.getHeight() * 0.25F, distance)) * live.drift;
-        driftYaw = MathHelper.clamp(driftYaw * 0.95F + (float) rng.nextGaussian() * maxDriftYaw * 0.12F, -maxDriftYaw, maxDriftYaw);
-        driftPitch = MathHelper.clamp(driftPitch * 0.95F + (float) rng.nextGaussian() * maxDriftPitch * 0.12F, -maxDriftPitch, maxDriftPitch);
-
-        float yawError = MathHelper.wrapDegrees(historyYaw[index] + driftYaw - current.getYaw());
-        float pitchError = MathHelper.clamp(historyPitch[index] + driftPitch, -PITCH_LIMIT, PITCH_LIMIT) - current.getPitch();
-
-        if (holdTicks > 0) {
-            holdTicks--;
-            velocityYaw *= 0.5F;
-            velocityPitch *= 0.5F;
-        } else if (rng.nextFloat() < live.holdChance) {
-            holdTicks = 1 + rng.nextInt(3);
-            velocityYaw *= 0.5F;
-            velocityPitch *= 0.5F;
-        } else {
-            velocityYaw = controller(yawError, velocityYaw, live.omega, live.zeta, live.maxSpeed);
-            velocityPitch = controller(pitchError, velocityPitch, live.omega * live.pitchGain, live.zeta, live.maxSpeed * 0.55F);
+        if (living == null || this.model == null) {
+            this.endSegment();
+            return this.fallback(current, target, gcd);
         }
 
-        tremorYaw = tremorYaw * 0.8F + (float) rng.nextGaussian() * live.tremor;
-        tremorPitch = tremorPitch * 0.8F + (float) rng.nextGaussian() * live.tremor * 0.6F;
-        return apply(current, velocityYaw + tremorYaw, velocityPitch + tremorPitch, step);
+        if (this.tracked != entity) {
+            this.startSegment(entity);
+        }
+
+        RawSample sample = this.features.sample(nowYaw, nowPitch, target.getYaw(), target.getPitch(),
+                player, living, this.prevYaw, this.prevPitch);
+        if (!this.features.fill(this.input, sample)) {
+            this.endSegment();
+            return this.fallback(current, target, gcd);
+        }
+
+        this.model.sample(this.input, this.rng, TEMPERATURE, this.step, this.headOut);
+        float dy = this.quantizer.step(0, this.step[0], gcd);
+        float dp = this.quantizer.step(1, this.step[1], gcd);
+        this.prevYaw = dy;
+        this.prevPitch = dp;
+        return this.apply(current, dy, dp);
     }
 
     @Override
     public Vec3d randomValue() {
-        return new Vec3d(0.0D, 0.0D, 0.0D);
+        return Vec3d.ZERO;
+    }
+
+    /**
+     * Starts or stops collecting training rows into bezier_dataset.csv. Call it from your keybind while playing
+     * normally; the file is truncated on every start.
+     */
+    public void toggleRecording() {
+        ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
+        if (this.recorder.isRecording()) {
+            this.recorder.stop();
+            this.notice(player, "[Bezier] запись остановлена: " + DATASET_FILE.toAbsolutePath());
+        } else if (this.recorder.start()) {
+            this.notice(player, "[Bezier] запись в " + DATASET_FILE.toAbsolutePath()
+                    + " (ротацию выключи, иначе модель учится сама у себя)");
+        } else {
+            this.notice(player, "[Bezier] не удалось открыть датасет: " + this.recorder.lastError());
+        }
+    }
+
+    /**
+     * Starts or cancels training of bezier_gru.bin from bezier_dataset.csv. Call it from a keybind; the work happens
+     * on a background daemon thread and progress is printed to chat. The trained model is reloaded automatically.
+     */
+    public void toggleTraining() {
+        ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
+        TrainingJob job = this.training;
+        if (job != null && job.isRunning()) {
+            job.cancel();
+            this.notice(player, "[Bezier] обучение отменяется");
+            return;
+        }
+        this.startTraining(new Trainer.Config());
+    }
+
+    /** Same as {@link #toggleTraining()} but with explicit hyperparameters, e.g. from a settings screen. */
+    public void startTraining(Trainer.Config config) {
+        ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
+        if (this.training != null) {
+            // A finished job may still hold the final messages and the pending model reload.
+            this.drainTraining(player);
+        }
+        if (this.training != null && this.training.isRunning()) {
+            this.notice(player, "[Bezier] обучение уже идёт");
+            return;
+        }
+        if (this.recorder.isRecording()) {
+            this.notice(player, "[Bezier] сначала останови запись: модель не должна учиться на своих же шагах");
+            return;
+        }
+        if (!Files.exists(DATASET_FILE)) {
+            this.notice(player, "[Bezier] нет датасета " + DATASET_FILE.toAbsolutePath());
+            return;
+        }
+        TrainingJob job = new TrainingJob(DATASET_FILE, MODEL_FILE, config);
+        this.training = job;
+        job.start();
+        this.notice(player, "[Bezier] обучение запущено на фоне, прогресс будет в чате");
+    }
+
+    public boolean isTraining() {
+        return this.training != null && this.training.isRunning();
+    }
+
+    private void drainTraining(ClientPlayerEntity player) {
+        TrainingJob job = this.training;
+        if (job == null) {
+            return;
+        }
+        String message;
+        while ((message = job.poll()) != null) {
+            this.notice(player, "[Bezier] " + message);
+        }
+        if (job.isRunning()) {
+            return;
+        }
+        this.training = null;
+        if (job.succeeded()) {
+            this.model = null;
+            this.modelStamp = Long.MIN_VALUE;
+            this.nextCheck = 0;
+            this.notice(player, "[Bezier] новая модель будет загружена в следующем тике");
+        }
+    }
+
+    private Rotation fallback(Rotation current, Rotation target, double gcd) {        this.human.desired(current.getYaw(), current.getPitch(), target.getYaw(), target.getPitch(), this.humanWant);
+        float dy = this.quantizer.step(0, this.humanWant[0], gcd);
+        float dp = this.quantizer.step(1, this.humanWant[1], gcd);
+        return this.apply(current, dy, dp);
+    }
+
+    private Rotation apply(Rotation current, float dyaw, float dpitch) {
+        return new Rotation(
+                MathHelper.wrapDegrees(current.getYaw() + dyaw),
+                MathHelper.clamp(current.getPitch() + dpitch, -PITCH_LIMIT, PITCH_LIMIT));
+    }
+
+    private void startSegment(Entity entity) {
+        this.tracked = entity;
+        this.features.reset();
+        this.human.reset();
+        this.quantizer.reset();
+        if (this.model != null) {
+            this.model.reset();
+        }
+        this.prevYaw = 0.0F;
+        this.prevPitch = 0.0F;
+    }
+
+    private void endSegment() {
+        this.tracked = null;
+        this.features.reset();
+        this.human.reset();
+        this.quantizer.reset();
+        if (this.model != null) {
+            this.model.reset();
+        }
+        this.prevYaw = 0.0F;
+        this.prevPitch = 0.0F;
+    }
+
+    private void refreshModel(ClientPlayerEntity player) {
+        if (this.calls < this.nextCheck) {
+            return;
+        }
+
+        this.nextCheck = this.calls + RECHECK_CALLS;
+        try {
+            if (!Files.exists(MODEL_FILE)) {
+                this.model = null;
+                this.modelStamp = Long.MIN_VALUE;
+                this.notice(player, "[Bezier] нет файла " + MODEL_FILE.toAbsolutePath() + ", работает режим Human");
+                return;
+            }
+
+            long stamp = Files.getLastModifiedTime(MODEL_FILE).toMillis();
+            if (this.model != null && stamp == this.modelStamp) {
+                return;
+            }
+
+            BezierGruModel loaded = BezierGruModel.load(MODEL_FILE);
+            if (loaded.features != BezierFeatures.COUNT) {
+                throw new IOException("в модели " + loaded.features + " входов, режим ожидает " + BezierFeatures.COUNT);
+            }
+
+            this.model = loaded;
+            this.modelStamp = stamp;
+            this.endSegment();
+            this.notice(player, "[Bezier] модель загружена: H=" + loaded.hidden + ", слоёв " + loaded.layers);
+        } catch (IOException e) {
+            this.model = null;
+            this.modelStamp = Long.MIN_VALUE;
+            this.notice(player, "[Bezier] не удалось загрузить модель (" + e.getMessage() + "), работает режим Human");
+        }
+    }
+
+    private void notice(ClientPlayerEntity player, String message) {
+        if (player == null || message.equals(this.lastNotice)) {
+            return;
+        }
+        this.lastNotice = message;
+        player.sendMessage(Text.literal(message), false);
     }
 }
