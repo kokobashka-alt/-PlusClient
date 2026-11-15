@@ -16,6 +16,11 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.registry.entry.RegistryEntry;
 import org.joml.Matrix3x2fStack;
 import org.joml.Vector4d;
 import ru.zov.api.event.EventHandler;
@@ -26,6 +31,7 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.system.shape.ShapeProperties;
 import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.math.ProjectionUtil;
+import ru.zov.common.util.other.Instance;
 import ru.zov.common.util.render.Render2DUtil;
 import ru.zov.implement.events.player.TickEvent;
 import ru.zov.implement.events.render.DrawEvent;
@@ -42,7 +48,7 @@ public class Esp2D extends Module {
       .value("Игроки", "Мобы", "Животные", "Невидимые")
       .selected("Игроки");
    private final MultiSelectSetting display = new MultiSelectSetting("Отображать", "Что рисовать у сущности")
-      .value("Бокс", "Здоровье", "Неймтег", "Пинг", "Броню", "Эффекты", "Предмет")
+      .value("Бокс", "Здоровье", "Неймтег", "Пинг", "Броню", "Эффекты", "Предмет", "Зачарования")
       .selected("Здоровье", "Неймтег", "Броню", "Эффекты", "Предмет");
    private final ValueSetting width = new ValueSetting("Ширина", "Толщина рамки и полоски здоровья")
       .setValue(1.0F)
@@ -50,6 +56,15 @@ public class Esp2D extends Module {
       .visible(() -> this.display.isSelected("Бокс") || this.display.isSelected("Здоровье"));
 
    private List<LivingEntity> entities = new ArrayList<>();
+
+   public static Esp2D getInstance() {
+      return (Esp2D) Instance.get(Esp2D.class);
+   }
+
+   // Пока 2D ESP рисует собственный неймтег игроков, ванильный над головой скрывается
+   public boolean replacesVanillaPlayerLabel() {
+      return this.isState() && this.display.isSelected("Неймтег") && this.targets.isSelected("Игроки");
+   }
 
    public Esp2D() {
       super("2D ESP", ModuleCategory.RENDER);
@@ -243,6 +258,13 @@ public class Esp2D extends Module {
          }
 
          MutableText text = Text.empty().append(stack.getName());
+         if (this.display.isSelected("Зачарования")) {
+            String enchants = this.enchantSummary(stack);
+            if (!enchants.isEmpty()) {
+               text.append(Text.literal(" " + enchants).formatted(Formatting.AQUA));
+            }
+         }
+
          if (stack.getCount() > 1) {
             text.append(Text.literal(" x" + stack.getCount()).formatted(Formatting.RED));
          }
@@ -250,6 +272,26 @@ public class Esp2D extends Module {
          this.drawText(context, text, centerX - this.textWidth(text, SMALL_SCALE) / 2.0F, y, SMALL_SCALE);
          y += this.textHeight(SMALL_SCALE) + 1.0F;
       }
+   }
+
+   // Сокращение — первые две буквы id зачарования (sharpness -> Sh), затем уровень
+   private String enchantSummary(ItemStack stack) {
+      ItemEnchantmentsComponent enchants = EnchantmentHelper.getEnchantments(stack);
+      StringBuilder out = new StringBuilder();
+      for (Object2IntMap.Entry<RegistryEntry<Enchantment>> entry : enchants.getEnchantmentEntries()) {
+         String path = entry.getKey().getKey().map(key -> key.getValue().getPath()).orElse("");
+         if (path.length() < 2) {
+            continue;
+         }
+
+         if (out.length() > 0) {
+            out.append(' ');
+         }
+
+         out.append(Character.toUpperCase(path.charAt(0))).append(path.charAt(1)).append(entry.getIntValue());
+      }
+
+      return out.toString();
    }
 
    private void drawArmorRow(DrawContext context, LivingEntity entity, float x1, float x2, float tagTop) {
