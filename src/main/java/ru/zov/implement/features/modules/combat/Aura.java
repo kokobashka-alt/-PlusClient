@@ -495,10 +495,10 @@ public final class Aura extends Module {
             i3 = 2;
         } else if (this.rotationMode.isSelected(AuraRotationMode.FUNTIME)) {
             i3 = 20;
-        } else if (this.rotationMode.isSelected(AuraRotationMode.SHARD) || this.rotationMode.isSelected(AuraRotationMode.SHARD_2)) {
-            i3 = 3;
-        } else {
-            i3 = 5;
+        } else if (this.rotationMode.isSelected(AuraRotationMode.SHARD)
+        || this.rotationMode.isSelected(AuraRotationMode.SHARD_2)
+        || this.rotationMode.isSelected(AuraRotationMode.BEZIER)) {
+    i3 = 3;
         }
 
         int i2;
