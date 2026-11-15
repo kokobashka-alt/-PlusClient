@@ -1,14 +1,10 @@
-package ru.zov.implement.features.modules.combat.killaura.type;
+package ru.zov.implement.features.modules.combat.killaura.neuro;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
-import ru.zov.implement.features.modules.combat.killaura.neuro.Gru;
 
-/**
- * Thin holder around {@link Gru} so the rotation code names the model in game terms. Loading and validation happen in
- * {@link Gru}; this class only exposes the sizes and the sampling call.
- */
+/** Thin holder around {@link Gru} that exposes model dimensions and sampling. */
 public final class BezierGruModel {
     public final int features;
     public final int hidden;
@@ -36,15 +32,7 @@ public final class BezierGruModel {
         this.gru.reset();
     }
 
-    /**
-     * Predicts and samples one tick.
-     *
-     * @param input    {@link BezierFeatures#COUNT} features for this tick
-     * @param rng      randomness source; one instance per mode is fine
-     * @param temperature multiplier on the learned sigma, 1 keeps the trained spread
-     * @param step     receives yaw and pitch step in degrees
-     * @param head     receives mean yaw, mean pitch, log sigma yaw, log sigma pitch (normalized units)
-     */
+    /** Predicts and samples one tick. */
     public void sample(float[] input, Random rng, float temperature, float[] step, float[] head) {
         this.gru.sample(input, rng, temperature, step, head);
     }

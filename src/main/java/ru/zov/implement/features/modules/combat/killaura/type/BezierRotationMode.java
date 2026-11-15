@@ -10,7 +10,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import ru.zov.implement.features.modules.combat.killaura.Mc;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.neuro.BezierRecorder;
 import ru.zov.implement.features.modules.combat.killaura.neuro.HumanStep;
@@ -20,18 +19,7 @@ import ru.zov.implement.features.modules.combat.killaura.neuro.Trainer;
 import ru.zov.implement.features.modules.combat.killaura.neuro.TrainingJob;
 import ru.zov.implement.features.modules.combat.killaura.util.MathUtil;
 
-/**
- * Neural rotation: a GRU trained on your own fights, either by the built-in trainer (Trainer/TrainingJob, runs in
- * the client on a background thread) or by tools/train_bezier.py. The model predicts the yaw and pitch step of
- * every tick as a Gaussian and one sample is taken from it. The step is snapped to the mouse sensitivity grid.
- *
- * <p>Inputs are built by {@link BezierFeatures}, the same code the recorder uses. Weights are read from
- * bezier_gru.bin in the game directory and reloaded when the file changes. Without a valid file, and for the
- * return-to-camera phase ({@code entity == null}), a damped human-like pursuit drives the rotation.
- *
- * <p>File format and validation live in {@link ru.zov.implement.features.modules.combat.killaura.neuro.Gru}.
- * Nothing here is known to bypass any anticheat; that has to be measured on the server you play.
- */
+/** Neural rotation trained from recorded aim data, with a damped fallback when no model is loaded. */
 public class BezierRotationMode extends RotationMode {
     private static final Path MODEL_FILE = Path.of("bezier_gru.bin");
     private static final Path DATASET_FILE = Path.of("bezier_dataset.csv");
@@ -63,10 +51,6 @@ public class BezierRotationMode extends RotationMode {
         this("Bezier");
     }
 
-    /**
-     * For modes that reuse this neural/fallback step and only reshape it before the mouse grid, e.g. AimAssist.
-     * The name is what the client shows in its mode picker.
-     */
     protected BezierRotationMode(String name) {
         super(name);
     }
@@ -97,7 +81,6 @@ public class BezierRotationMode extends RotationMode {
             } else {
                 RawSample sample = this.features.sample(nowYaw, nowPitch, target.getYaw(), target.getPitch(),
                         player, living, this.prevYaw, this.prevPitch);
-                // Labels come from the player's own aim, so record with the rotation off or on Human.
                 this.recorder.tick(living.getId(), player.getYaw(), player.getPitch(), sample);
             }
         }
@@ -132,10 +115,6 @@ public class BezierRotationMode extends RotationMode {
         return Vec3d.ZERO;
     }
 
-    /**
-     * Starts or stops collecting training rows into bezier_dataset.csv. Call it from your keybind while playing
-     * normally; the file is truncated on every start.
-     */
     public void toggleRecording() {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
         if (this.recorder.isRecording()) {
@@ -149,10 +128,6 @@ public class BezierRotationMode extends RotationMode {
         }
     }
 
-    /**
-     * Starts or cancels training of bezier_gru.bin from bezier_dataset.csv. Call it from a keybind; the work happens
-     * on a background daemon thread and progress is printed to chat. The trained model is reloaded automatically.
-     */
     public void toggleTraining() {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
         TrainingJob job = this.training;
@@ -164,11 +139,9 @@ public class BezierRotationMode extends RotationMode {
         this.startTraining(new Trainer.Config());
     }
 
-    /** Same as {@link #toggleTraining()} but with explicit hyperparameters, e.g. from a settings screen. */
     public void startTraining(Trainer.Config config) {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
         if (this.training != null) {
-            // A finished job may still hold the final messages and the pending model reload.
             this.drainTraining(player);
         }
         if (this.training != null && this.training.isRunning()) {
@@ -222,13 +195,6 @@ public class BezierRotationMode extends RotationMode {
         return this.apply(current, dy, dp);
     }
 
-    /**
-     * Called after the model or the human fallback produced a step, but before it is snapped to the mouse grid.
-     * Override to reshape the step (AimAssist adds acceleration, deceleration, reaction and tremor here).
-     * The default implementation leaves it unchanged. {@code entity} is null on the return-to-camera path.
-     *
-     * @param step in/out: step[0] is yaw, step[1] is pitch, in degrees per tick
-     */
     protected void shapeStep(Rotation current, Rotation target, Entity entity, float[] step) {
     }
 

@@ -7,28 +7,13 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
-import ru.zov.implement.features.modules.combat.killaura.Mc;
+import ru.zov.implement.features.modules.combat.killaura.type.Mc;
 
-/**
- * Minecraft glue for {@link TriggerBot}. Everything that depends on the client's mappings is in this file; the core
- * does not import Minecraft at all.
- *
- * <p>Assumed Yarn 1.21.x names, all checked against the public client API at the time of writing:
- * {@code MinecraftClient#crosshairTarget}, {@code EntityHitResult#getEntity}, {@code Entity#isAlive},
- * {@code Entity#squaredDistanceTo}, {@code ClientPlayerEntity#getAttackCooldownProgress},
- * {@code ClientPlayerEntity#isUsingItem}, {@code ClientPlayerInteractionManager#attackEntity},
- * {@code LivingEntity#swingHand}, {@code Hand#MAIN_HAND}. If your fork renames one, the compiler points at the exact
- * line; no offsets or mixins are involved.
- *
- * <p>The target comes from the vanilla crosshair, so a wall between the eye and the entity already prevents the
- * click. The distance check is only a second safety net.
- */
+/** Minecraft glue for {@link TriggerBot}. */
 public final class McTriggerContext implements TriggerBot.Context {
-    /** Vanilla-like interaction range. Tune it to your server; the crosshair target is already range-checked. */
     public static final double DEFAULT_REACH = 4.0;
 
     private final double reachSquared;
-
     private LivingEntity cached;
     private int cachedId = -1;
 

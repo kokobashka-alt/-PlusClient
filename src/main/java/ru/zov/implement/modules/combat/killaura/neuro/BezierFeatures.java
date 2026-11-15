@@ -1,19 +1,15 @@
-package ru.zov.implement.features.modules.combat.killaura.type;
+package ru.zov.implement.features.modules.combat.killaura.neuro;
 
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Vec3d;
-import ru.zov.implement.features.modules.combat.killaura.neuro.FeatureVector;
-import ru.zov.implement.features.modules.combat.killaura.neuro.RawSample;
 
 /**
- * Minecraft-facing side of the feature builder. Converts the live entities into a {@link RawSample} and lets
- * {@link FeatureVector} do the arithmetic, so the numbers here are the same ones the recorder writes and the trainer
- * expects.
+ * Minecraft-facing feature builder for the neural combat model. Converts live entities into a {@link RawSample}
+ * and delegates feature arithmetic to {@link FeatureVector}.
  *
- * <p>The attack timer is counted in {@link #tick()} calls, i.e. one per client tick. If your killaura calls the
- * rotation more than once per tick, move {@link #tick()} to your own tick hook or the "ticks since attack" feature
- * will run fast.
+ * <p>The attack timer is counted in {@link #tick()} calls, i.e. one per client tick. If the rotation is called more
+ * than once per tick, move {@link #tick()} to a client tick hook so the timer remains accurate.
  */
 public final class BezierFeatures {
     public static final int COUNT = FeatureVector.COUNT;
@@ -40,7 +36,7 @@ public final class BezierFeatures {
     public RawSample sample(float curYaw, float curPitch, float targetYaw, float targetPitch,
                             ClientPlayerEntity player, LivingEntity target, float prevYaw, float prevPitch) {
         Vec3d eye = player.getEyePos();
-        Vec3d targetPos = target.getPos();
+        Vec3d targetPos = target.getEntityPos();
         double aimX = targetPos.x;
         double aimY = targetPos.y + target.getHeight() * 0.5;
         double aimZ = targetPos.z;
