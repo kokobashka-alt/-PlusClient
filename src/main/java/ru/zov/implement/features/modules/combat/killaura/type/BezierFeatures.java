@@ -40,7 +40,7 @@ public final class BezierFeatures {
     public RawSample sample(float curYaw, float curPitch, float targetYaw, float targetPitch,
                             ClientPlayerEntity player, LivingEntity target, float prevYaw, float prevPitch) {
         Vec3d eye = player.getEyePos();
-        Vec3d targetPos = target.getPos();
+        Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
         double aimX = targetPos.x;
         double aimY = targetPos.y + target.getHeight() * 0.5;
         double aimZ = targetPos.z;
