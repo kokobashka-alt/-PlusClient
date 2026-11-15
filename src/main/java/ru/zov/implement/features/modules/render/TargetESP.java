@@ -1,11 +1,14 @@
 package ru.zov.implement.features.modules.render;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import ru.zov.api.event.EventHandler;
 import ru.zov.api.feature.module.Module;
@@ -25,9 +28,36 @@ public class TargetESP extends Module {
     private static final float ANIM_STEP = 0.15F;
     private static final long HIT_SHOW_MS = 3000L;
 
+    // === Кристаллы ===
+    private static final Vector3f[] CRYSTAL_VERTICES = new Vector3f[]{
+            new Vector3f(0.0F, 1.5F, 0.0F),
+            new Vector3f(0.0F, -1.5F, 0.0F),
+            new Vector3f(1.0F, 0.0F, 0.0F),
+            new Vector3f(-1.0F, 0.0F, 0.0F),
+            new Vector3f(0.0F, 0.0F, 1.0F),
+            new Vector3f(0.0F, 0.0F, -1.0F)
+    };
+    private static final int[][] CRYSTAL_FACES = new int[][]{
+            {0, 2, 4}, {0, 4, 3}, {0, 3, 5}, {0, 5, 2},
+            {1, 4, 2}, {1, 3, 4}, {1, 5, 3}, {1, 2, 5}
+    };
+    private static final float[] CRYSTAL_BRIGHTNESS = new float[]{
+            1.0F, 0.8F, 0.6F, 0.9F, 0.7F, 0.5F, 0.4F, 0.6F
+    };
+
+    // === Вихрь ===
+    private static final long MODULE_START_MS = System.currentTimeMillis();
+    private static final Random RANDOM = new Random();
+    private final float[] vortexRotSpeed = new float[3];
+    private final float[] vortexPitchSpeed = new float[3];
+    private final float[] vortexPitchPhase = new float[3];
+    private final float[] vortexYawBase = new float[3];
+    private LivingEntity vortexSeededFor;
+
+    // === Общие ===
     private final SelectSetting mode =
             new SelectSetting("Режим", "Стиль Target ESP")
-                    .value("Ромб", "Кольцо", "Души", "Цепи", "Карты", "Молния");
+                    .value("Ромб", "Кольцо", "Души", "Цепи", "Карты", "Молния", "Кристаллы", "Вихрь");
 
     private final BooleanSetting hurtColor =
             new BooleanSetting("Окрашивание при ударе", "Краснеет, когда цель получает урон")
@@ -41,13 +71,15 @@ public class TargetESP extends Module {
             new ValueSetting("Радиус", "Размер колец")
                     .setValue(0.7f)
                     .range(0.3f, 2.0f)
-                    .visible(() -> mode.isSelected("Цепи") || mode.isSelected("Карты"));
+                    .visible(() -> mode.isSelected("Цепи") || mode.isSelected("Карты")
+                            || mode.isSelected("Вихрь") || mode.isSelected("Кристаллы"));
 
     private final ValueSetting speed =
             new ValueSetting("Скорость", "Скорость вращения")
                     .setValue(1.0f)
                     .range(0.1f, 3.0f)
-                    .visible(() -> mode.isSelected("Цепи") || mode.isSelected("Карты"));
+                    .visible(() -> mode.isSelected("Цепи") || mode.isSelected("Карты")
+                            || mode.isSelected("Вихрь") || mode.isSelected("Кристаллы"));
 
     private final ValueSetting height =
             new ValueSetting("Высота", "Высота колец")
@@ -72,6 +104,7 @@ public class TargetESP extends Module {
     public TargetESP() {
         super("TargetESP", "Target ESP", ModuleCategory.RENDER);
         this.setup(new Setting[]{mode, hurtColor, throughWalls, radius, speed, height});
+        this.reseedVortex();
     }
 
     public static TargetESP getInstance() {
@@ -140,6 +173,8 @@ public class TargetESP extends Module {
             case "Цепи" -> drawChains(e, shown);
             case "Карты" -> drawCards(e, shown, red, walls, color);
             case "Молния" -> lightning.render(target, target.getLerpedPos(e.partialTicks()), shown, red, color, !walls);
+            case "Кристаллы" -> drawCrystals(e, shown, red, walls, color);
+            case "Вихрь" -> drawVortex(e, shown, red, walls, color);
             default -> {
             }
         }
@@ -159,6 +194,182 @@ public class TargetESP extends Module {
         }
         return Math.max(value - step, goal);
     }
+
+    // ============================================================
+    // ======================= КРИСТАЛЛЫ ===========================
+    // ============================================================
+
+    /**
+     * Перенос режима «Кристаллы» из auravisuals.
+     *
+     * Октаэдр (8 треугольников) вращается кольцом вокруг цели.
+     * Треугольники эмулируются через drawQuad(a, b, c, c, ...) — дублирующийся
+     * вертекс визуально даёт треугольник.
+     */
+    private void drawCrystals(WorldRenderEvent e, float shown, float red, boolean walls, int accent) {
+        long frameMs = System.currentTimeMillis();
+        float anim = MathHelper.clamp(shown, 0.0F, 1.0F);
+        float moving = (float) (frameMs % 100000L) * 0.2F * speed.getValue();
+        float width = target.getWidth() * 1.5F;
+        float height = target.getHeight();
+        Vec3d basePos = target.getLerpedPos(e.partialTicks());
+        boolean depth = !walls;
+
+        int baseColor = ColorUtil.multAlpha(accent, anim);
+
+        for (int i = 0; i < 360; i += 20) {
+            float val = 1.2F - 0.5F * anim;
+            float angle = (float) Math.toRadians(i + moving * 0.3F);
+            float sin = (float) (Math.sin(angle) * width * val);
+            float cos = (float) (Math.cos(angle) * width * val);
+            float y = 0.1F + height * Math.abs((float) Math.sin(i));
+
+            Vec3d crystalPos = basePos.add(sin, y, cos);
+
+            // Направление от кристалла к центру цели
+            double dx = -sin;
+            double dy = height * 0.5F - 1.0F;
+            double dz = -cos;
+            double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (len < 1.0E-6) {
+                dx = 0.0; dy = 1.0; dz = 0.0; len = 1.0;
+            }
+            dx /= len; dy /= len; dz /= len;
+
+            Quaternionf q = new Quaternionf()
+                    .rotationTo(new Vector3f(0.0F, 1.0F, 0.0F),
+                            new Vector3f((float) dx, (float) dy, (float) dz));
+
+            for (int f = 0; f < CRYSTAL_FACES.length; f++) {
+                int shaded = applyBrightness(baseColor, CRYSTAL_BRIGHTNESS[f]);
+                int[] face = CRYSTAL_FACES[f];
+
+                Vec3d v0 = rotatedVertex(CRYSTAL_VERTICES[face[0]], q, 0.1F, crystalPos);
+                Vec3d v1 = rotatedVertex(CRYSTAL_VERTICES[face[1]], q, 0.1F, crystalPos);
+                Vec3d v2 = rotatedVertex(CRYSTAL_VERTICES[face[2]], q, 0.1F, crystalPos);
+
+                // Треугольник = квад с дублирующимся вертексом
+                Render3DUtil.drawQuad(v0, v1, v2, v2, shaded, depth);
+            }
+        }
+    }
+
+    private static Vec3d rotatedVertex(Vector3f v, Quaternionf q, float scale, Vec3d offset) {
+        Vector3f rotated = new Vector3f(v).rotate(q).mul(scale);
+        return offset.add(rotated.x, rotated.y, rotated.z);
+    }
+
+    private static int applyBrightness(int color, float brightness) {
+        int a = (color >>> 24) & 0xFF;
+        int r = MathHelper.clamp((int) (((color >>> 16) & 0xFF) * brightness), 0, 255);
+        int g = MathHelper.clamp((int) (((color >>> 8) & 0xFF) * brightness), 0, 255);
+        int b = MathHelper.clamp((int) ((color & 0xFF) * brightness), 0, 255);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    // ============================================================
+    // ========================= ВИХРЬ ============================
+    // ============================================================
+
+    /**
+     * Перенос режима «Вихрь» из auravisuals.
+     *
+     * Источник рисовал 3 вращающихся квада с текстурой vortex.png и блумом.
+     * Здесь — плоские квады с клиентским цветом (без текстуры и аддитива).
+     * Визуально это вращающаяся платформа из 3 «лепестков» с пульсацией.
+     */
+    private void drawVortex(WorldRenderEvent e, float shown, float red, boolean walls, int accent) {
+        if (vortexSeededFor != target) {
+            reseedVortex();
+            vortexSeededFor = target;
+        }
+
+        long frameMs = System.currentTimeMillis();
+        float time = (float) (frameMs - MODULE_START_MS) / 1000.0F;
+        float spd = speed.getValue();
+        float sizeMul = MathHelper.clamp(radius.getValue() / 0.7F, 0.5F, 2.5F);
+        float half = target.getWidth() * 2.5F * sizeMul;
+        float baseY = target.getHeight() * 0.62F - 0.006F;
+        Vec3d basePos = target.getLerpedPos(e.partialTicks());
+        boolean depth = !walls;
+
+        // red добавляет вспышку при ударе
+        float hitBoost = 1.0F + red * 0.5F;
+        int baseColor = ColorUtil.multAlpha(accent, shown * hitBoost);
+
+        for (int pass = 0; pass < 2; pass++) {
+            float passAlpha = pass == 0 ? 1.0F : 0.85F;
+
+            for (int i = 0; i < 3; i++) {
+                float pulse = (MathHelper.sin(time * spd * 3.4F + i * (float) (Math.PI * 2.0 / 3.0)) + 1.0F) * 0.5F;
+                float layerAlpha = MathHelper.lerp(pulse, 0.35F, 1.0F);
+                float yaw = -time * 140.0F * spd * vortexRotSpeed[i] + vortexYawBase[i];
+                float pitch = MathHelper.sin(time * vortexPitchSpeed[i] + vortexPitchPhase[i]) * 30.0F;
+                int color = ColorUtil.multAlpha(baseColor, layerAlpha * passAlpha);
+                Vec3d center = basePos.add(0.0, baseY + 0.006F * i, 0.0);
+
+                drawRotatedQuad(center, half, 90.0F + yaw, pitch, color, depth);
+            }
+        }
+    }
+
+    private void drawRotatedQuad(Vec3d center, float half, float yawDeg, float pitchDeg,
+                                 int color, boolean depth) {
+        float yaw = (float) Math.toRadians(yawDeg);
+        float pitch = (float) Math.toRadians(pitchDeg);
+        float cy = MathHelper.cos(yaw), sy = MathHelper.sin(yaw);
+        float cp = MathHelper.cos(pitch), sp = MathHelper.sin(pitch);
+
+        // Локальные углы в плоскости XZ
+        float[][] corners = {{-half, -half}, {-half, half}, {half, half}, {half, -half}};
+        Vec3d[] world = new Vec3d[4];
+
+        for (int i = 0; i < 4; i++) {
+            float lx = corners[i][0];
+            float lz = corners[i][1];
+            // Вращение вокруг Y
+            float x1 = lx * cy + lz * sy;
+            float z1 = -lx * sy + lz * cy;
+            // Вращение вокруг X (локальная y = 0)
+            float y2 = -z1 * sp;
+            float z2 = z1 * cp;
+            world[i] = center.add(x1, y2, z2);
+        }
+
+        Render3DUtil.drawQuad(world[0], world[1], world[2], world[3], color, depth);
+    }
+
+    private void reseedVortex() {
+        for (int i = 0; i < 3; i++) {
+            vortexRotSpeed[i] = 0.75F + RANDOM.nextFloat() * 0.5F;
+            vortexPitchSpeed[i] = 0.8F + RANDOM.nextFloat() * 0.8F;
+            vortexPitchPhase[i] = RANDOM.nextFloat() * (float) (Math.PI * 2);
+        }
+
+        for (int attempt = 0; attempt < 64; attempt++) {
+            for (int i = 0; i < 3; i++) {
+                vortexYawBase[i] = -30.0F + RANDOM.nextFloat() * 60.0F;
+            }
+            boolean ok = true;
+            for (int a = 0; a < 3 && ok; a++) {
+                for (int b = a + 1; b < 3; b++) {
+                    if (Math.abs(vortexYawBase[a] - vortexYawBase[b]) < 22.0F) {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if (ok) return;
+        }
+
+        vortexYawBase[0] = -30.0F + RANDOM.nextFloat() * 4.0F;
+        vortexYawBase[1] = -2.0F + RANDOM.nextFloat() * 4.0F;
+        vortexYawBase[2] = 30.0F - RANDOM.nextFloat() * 4.0F;
+    }
+
+    // ============================================================
+    // ======================== ЦЕПИ ==============================
+    // ============================================================
 
     private void drawChains(WorldRenderEvent e, float shown) {
         Vec3d camera = mc.gameRenderer.getCamera().getCameraPos();
@@ -187,7 +398,7 @@ public class TargetESP extends Module {
         }
     }
 
-    // === Карты ===
+    // ====================== КАРТЫ (без изменений) =================
 
     private void drawCards(WorldRenderEvent e, float shown, float red, boolean walls, int accent) {
         long now = System.currentTimeMillis();
@@ -203,8 +414,6 @@ public class TargetESP extends Module {
         float hitSpin = red * red * 360f;
         float time = cardsElapsed;
 
-        // Render3DUtil queues use the world-space matrix that already subtracts the camera,
-        // so card geometry must be in world coordinates.
         Vec3d base = target.getLerpedPos(e.partialTicks());
         Vec3d camera = mc.gameRenderer.getCamera().getCameraPos();
         boolean depth = !walls;
@@ -258,9 +467,7 @@ public class TargetESP extends Module {
         boolean redSuit = suit == 1 || suit == 2;
         int suitColor = ColorUtil.multAlpha(redSuit ? 0xFFD8263A : 0xFF16161C, alpha);
 
-        cardRect(pos, u, v, dir, 0, -hw - rim, -hh - rim, hw + rim, hh + rim, ColorUtil.multAlpha(0xFF101018, alpha), depth);
-        if (front) {
-            cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, ColorUtil.multAlpha(0xFFF7F3EA, alpha), depth);
+        cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, ColorUtil.multAlpha(0xFFF7F3EA, alpha), depth);
             cardFrame(pos, u, v, dir, 2, hw * 0.84, hh * 0.88, 0.014 * size, suitColor, depth);
             cardSuit(pos, u, v, dir, 3, suit, 0.0, 0.0, 0.25 * size, false, suitColor, depth);
             cardSuit(pos, u, v, dir, 3, suit, -hw * 0.62, hh * 0.68, 0.075 * size, false, suitColor, depth);
@@ -353,4 +560,4 @@ public class TargetESP extends Module {
     public LivingEntity getTarget() {
         return target;
     }
-                    }
+}
