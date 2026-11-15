@@ -2,7 +2,6 @@ package ru.zov.implement.features.commands.defaults;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -18,8 +17,8 @@ import ru.zov.api.feature.command.datatypes.ConfigFileDataType;
 import ru.zov.api.feature.command.exception.CommandException;
 import ru.zov.api.feature.command.helpers.Paginator;
 import ru.zov.api.feature.command.helpers.TabCompleteHelper;
+import ru.zov.api.file.ConfigFiles;
 import ru.zov.api.file.FileController;
-import ru.zov.api.file.FileRepository;
 import ru.zov.api.file.exception.FileProcessingException;
 import ru.zov.core.Main;
 import ru.zov.core.client.ClientInfoProvider;
@@ -37,55 +36,86 @@ public class ConfigCommand extends Command {
    @Native
    @Override
    public void execute(String label, IArgConsumer args) throws CommandException {
-      String arg = args.hasAny() ? args.getString().toLowerCase(Locale.US) : "list";
-      args.requireMax(1);
-      if (arg.contains("load")) {
-         String name = args.getString();
-         if (new File(this.clientInfoProvider.configsDir(), name + ".json").exists()) {
-            try {
-               FileRepository fileRepository = new FileRepository();
-               fileRepository.setup(main);
-               FileController fileController = new FileController(
-                  fileRepository.getClientFiles(), this.clientInfoProvider.filesDir(), this.clientInfoProvider.configsDir()
-               );
-               fileController.loadFile(name + ".json");
-               this.logDirect(String.format("Конфигурация %s загружена!", name));
-            } catch (FileProcessingException e) {
-               this.logDirect(String.format("Ошибка при загрузке конфига! Детали: %s", e.getCause().getMessage()), Formatting.RED);
-            }
-         } else {
-            this.logDirect(String.format("Конфигурация %s не найдена!", name));
+      String sub = args.hasAny() ? args.getString().toLowerCase(Locale.ROOT) : "list";
+      switch (sub) {
+         case "load" -> {
+            args.requireMax(1);
+            this.load(args.getString());
          }
-      }
-
-      if (arg.contains("save")) {
-         String name = args.getString();
-
-         try {
-            this.fileController.saveFile(name + ".json");
-            this.logDirect(String.format("Конфигурация %s сохранена!", name));
-         } catch (Exception e) {
-            System.out.println(e.getMessage());
-            System.out.printf("error %s%n", e.getCause().getMessage());
-            this.logDirect(String.format("Ошибка при сохранении конфига! Детали: %s", e.getCause().getMessage()), Formatting.RED);
+         case "save" -> {
+            args.requireMax(1);
+            this.save(args.getString());
          }
-      }
-
-      if (arg.contains("list")) {
-         Paginator.paginate(args, new Paginator<>(this.getConfigs()), () -> this.logDirect("Список конфигов:"), config -> {
+         case "list" -> Paginator.paginate(args, new Paginator<>(this.getConfigs()), () -> this.logDirect("Список конфигов:"), config -> {
             MutableText namesComponent = Text.literal(config);
             namesComponent.setStyle(namesComponent.getStyle().withColor(Formatting.WHITE));
             return namesComponent;
          }, IBaritoneChatControl.FORCE_COMMAND_PREFIX + label);
+         case "dir" -> this.openDirectory();
+         default -> this.logDirect("Неизвестная подкоманда. Доступно: load, save, list, dir", Formatting.RED);
+      }
+   }
+
+   private void load(String rawName) {
+      String name = ConfigFiles.normalizeName(rawName);
+      if (name == null) {
+         this.logDirect("Недопустимое имя конфига!", Formatting.RED);
+         return;
       }
 
-      if (arg.contains("dir")) {
-         try {
-            Runtime.getRuntime().exec("explorer " + this.clientInfoProvider.configsDir().getAbsolutePath());
-         } catch (IOException e) {
-            this.logDirect("Папка с конфигурациями не найдена!" + e.getMessage());
-         }
+      File file = ConfigFiles.file(this.clientInfoProvider.configsDir(), name);
+      if (!file.isFile()) {
+         this.logDirect(String.format("Конфигурация %s не найдена!", name));
+         return;
       }
+
+      try {
+         this.fileController.loadFile(file.getName());
+         this.logDirect(String.format("Конфигурация %s загружена!", name));
+      } catch (FileProcessingException | RuntimeException e) {
+         this.logDirect(String.format("Ошибка при загрузке конфига! Детали: %s", describe(e)), Formatting.RED);
+      }
+   }
+
+   private void save(String rawName) {
+      String name = ConfigFiles.normalizeName(rawName);
+      if (name == null) {
+         this.logDirect("Недопустимое имя конфига!", Formatting.RED);
+         return;
+      }
+
+      try {
+         this.fileController.saveFile(ConfigFiles.fileName(name));
+         this.logDirect(String.format("Конфигурация %s сохранена!", name));
+      } catch (FileProcessingException | RuntimeException e) {
+         this.logDirect(String.format("Ошибка при сохранении конфига! Детали: %s", describe(e)), Formatting.RED);
+      }
+   }
+
+   private void openDirectory() {
+      File directory = this.clientInfoProvider.configsDir();
+      directory.mkdirs();
+      String path = directory.getAbsolutePath();
+      String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+
+      try {
+         ProcessBuilder builder = os.contains("win")
+            ? new ProcessBuilder("explorer", path)
+            : (os.contains("mac") ? new ProcessBuilder("open", path) : new ProcessBuilder("xdg-open", path));
+         builder.start();
+      } catch (IOException e) {
+         this.logDirect("Не удалось открыть папку с конфигурациями: " + e.getMessage(), Formatting.RED);
+      }
+   }
+
+   private static String describe(Exception e) {
+      String message = e.getMessage();
+      Throwable cause = e.getCause();
+      if (cause != null && cause.getMessage() != null) {
+         message = message == null ? cause.getMessage() : message + ": " + cause.getMessage();
+      }
+
+      return message == null ? e.getClass().getSimpleName() : message;
    }
 
    @Native
@@ -130,17 +160,6 @@ public class ConfigCommand extends Command {
    }
 
    public List<String> getConfigs() {
-      List<String> configs = new ArrayList<>();
-      File[] configFiles = main.getClientInfoProvider().configsDir().listFiles();
-      if (configFiles != null) {
-         for (File configFile : configFiles) {
-            if (configFile.isFile() && configFile.getName().endsWith(".json")) {
-               String configName = configFile.getName().replace(".json", "");
-               configs.add(configName);
-            }
-         }
-      }
-
-      return configs;
+      return ConfigFiles.list(this.clientInfoProvider.configsDir());
    }
 }
