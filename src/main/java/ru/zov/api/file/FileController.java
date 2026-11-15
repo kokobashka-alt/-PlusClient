@@ -15,7 +15,11 @@ public class FileController {
    private final List<ClientFile> clientFiles;
    private final File directory;
    private final File moduleConfigDirectory;
-   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+      Thread thread = new Thread(runnable, "client-autosave");
+      thread.setDaemon(true);
+      return thread;
+   });
 
    public FileController(List<ClientFile> clientFiles, File directory, File moduleConfigDirectory) {
       this.clientFiles = clientFiles;
@@ -28,10 +32,11 @@ public class FileController {
    public void startAutoSave() {
       LoggerUtil.info("Auto-save system started!");
       this.scheduler.scheduleAtFixedRate(() -> {
+         // Any exception escaping a scheduled task silently cancels every later run, so nothing may escape here.
          try {
             LoggerUtil.info("Saving with auto-save.");
             this.saveFiles();
-         } catch (FileSaveException e) {
+         } catch (Exception e) {
             LoggerUtil.error("Failed to auto-save files: " + e.getMessage());
          }
       }, 1L, 1L, TimeUnit.MINUTES);
@@ -51,40 +56,62 @@ public class FileController {
       }
    }
 
+   /** Saves every file even if one of them fails; the first failure is rethrown afterwards. */
    @Native
    public void saveFiles() throws FileSaveException {
       if (this.clientFiles.isEmpty()) {
          LoggerUtil.warn("No files to save from directory: " + this.directory.getPath());
-      } else {
-         for (ClientFile clientFile : this.clientFiles) {
-            try {
-               clientFile.saveToFile(this.directory);
-               LoggerUtil.info("Successfully saved file: " + clientFile.getName() + " to " + this.directory.getPath());
-            } catch (FileSaveException e) {
-               throw new FileSaveException("Failed to save file: " + clientFile.getName(), e);
+         return;
+      }
+
+      this.directory.mkdirs();
+      FileSaveException failure = null;
+      for (ClientFile clientFile : this.clientFiles) {
+         try {
+            clientFile.saveToFile(this.directory);
+            LoggerUtil.info("Successfully saved file: " + clientFile.getName() + " to " + this.directory.getPath());
+         } catch (FileSaveException | RuntimeException e) {
+            LoggerUtil.error("Failed to save file: " + clientFile.getName() + " (" + e.getMessage() + ")");
+            if (failure == null) {
+               failure = new FileSaveException("Failed to save file: " + clientFile.getName(), e);
             }
          }
       }
+
+      if (failure != null) {
+         throw failure;
+      }
    }
 
+   /** Loads every file even if one of them fails; the first failure is rethrown afterwards. */
    @Native
    public void loadFiles() throws FileLoadException {
       if (this.clientFiles.isEmpty()) {
          LoggerUtil.warn("No files to load from directory: " + this.directory.getPath());
-      } else {
-         for (ClientFile clientFile : this.clientFiles) {
-            try {
-               clientFile.loadFromFile(this.directory);
-               LoggerUtil.info("Successfully loaded file: " + clientFile.getName() + " from " + this.directory.getPath());
-            } catch (FileLoadException e) {
-               throw new FileLoadException("Failed to load file: " + clientFile.getName(), e);
+         return;
+      }
+
+      FileLoadException failure = null;
+      for (ClientFile clientFile : this.clientFiles) {
+         try {
+            clientFile.loadFromFile(this.directory);
+            LoggerUtil.info("Successfully loaded file: " + clientFile.getName() + " from " + this.directory.getPath());
+         } catch (FileLoadException | RuntimeException e) {
+            LoggerUtil.error("Failed to load file: " + clientFile.getName() + " (" + e.getMessage() + ")");
+            if (failure == null) {
+               failure = new FileLoadException("Failed to load file: " + clientFile.getName(), e);
             }
          }
+      }
+
+      if (failure != null) {
+         throw failure;
       }
    }
 
    @Native
    public void saveFile(String fileName) throws FileSaveException {
+      this.moduleConfigDirectory.mkdirs();
       for (ClientFile clientFile : this.clientFiles) {
          if (clientFile instanceof ModuleFile) {
             try {
