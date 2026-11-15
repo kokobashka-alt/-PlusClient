@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zov.implement.features.modules.render.EntityESP;
+import ru.zov.implement.features.modules.render.Esp2D;
 import ru.zov.implement.features.modules.combat.Aura;
 
 @Mixin(PlayerEntityRenderer.class)
@@ -45,9 +46,17 @@ public class PlayerEntityRendererMixin {
 
     @Unique
     private static boolean shouldHideVanillaPlayerLabel(PlayerEntityRenderState state, EntityESP esp) {
+        if (state.displayName == null) {
+            return false;
+        }
+
+        Esp2D esp2d = Esp2D.getInstance();
+        if (esp2d != null && esp2d.replacesVanillaPlayerLabel()) {
+            return true;
+        }
+
         return esp != null
                 && esp.isState()
-                && esp.entityType.isSelected("Player")
-                && state.displayName != null;
+                && esp.entityType.isSelected("Player");
     }
 }
