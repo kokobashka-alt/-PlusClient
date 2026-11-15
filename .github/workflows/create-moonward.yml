@@ -17,7 +17,7 @@ jobs:
 
       - name: Create moonward folder
         run: |
-          mkdir -p src/main/java/ru/zov/implement/screens/menu/moonward
+          mkdir -p src/main/java/ru/zov/implement/screens/menu/alpha
           touch src/main/java/ru/zov/implement/screens/menu/alpha/.gitkeep
 
       - name: Commit folder
