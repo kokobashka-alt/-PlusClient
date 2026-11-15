@@ -43,9 +43,11 @@ import ru.zov.implement.features.modules.combat.killaura.event.PacketSendEvent;
 import ru.zov.implement.features.modules.combat.killaura.util.PlayerSnapshotManager;
 import ru.zov.implement.features.modules.combat.killaura.util.PlayerActionUtil;
 import ru.zov.implement.features.modules.combat.killaura.event.PlayerTickEvent;
+import ru.zov.implement.features.modules.combat.killaura.event.RotationUpdateEvent;
 import ru.zov.implement.features.modules.combat.killaura.util.RaycastUtil;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.config.RotationConfig;
+import ru.zov.implement.features.modules.combat.killaura.util.GrimDelayHandler;
 import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
 import ru.zov.implement.features.modules.combat.killaura.math.RotationMath;
 import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
@@ -633,7 +635,7 @@ public final class Aura extends Module {
 
     public void breakShieldWithAxe(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager) {
         if (this.breakShield.isValue()) {
-            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getPos().subtract(this.target.getPos()).normalize()), -1.0D, 1.0D))) < 45.0D) {
+            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEntityPos().subtract(this.target.getEntityPos()).normalize()), -1.0D, 1.0D))) < 45.0D) {
                 Optional<SlotSearchResult2> optionalFindItem = AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> itemStack.getItem() instanceof AxeItem, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
                 if (optionalFindItem.isEmpty() || !optionalFindItem.get().found()) {
                     return;
