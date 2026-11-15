@@ -110,10 +110,10 @@ public class Main implements ModInitializer {
 
    @Native
    private void initClientInfoProvider() {
-      File clientDirectory = new File(MinecraftClient.getInstance().runDirectory, "\\zov\\");
-      File filesDirectory = new File(clientDirectory, "\\files\\");
-      File moduleFilesDirectory = new File(filesDirectory, "\\config\\");
-      this.clientInfoProvider = new ClientInfo("ZOV", UserProfile.username, UserProfile.role, clientDirectory, filesDirectory, moduleFilesDirectory);
+      File clientDirectory = new File(MinecraftClient.getInstance().runDirectory, "zov");
+      File filesDirectory = new File(clientDirectory, "files");
+      File moduleFilesDirectory = new File(filesDirectory, "config");
+      this.clientInfoProvider = new ClientInfo("PLUS", UserProfile.username, UserProfile.role, clientDirectory, filesDirectory, moduleFilesDirectory);
    }
 
    @Native
