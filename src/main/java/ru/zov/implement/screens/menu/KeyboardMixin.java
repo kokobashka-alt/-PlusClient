@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zov.api.event.EventManager;
 import ru.zov.implement.events.keyboard.KeyEvent;
-import ru.zov.implement.screens.menu.moonward.MoonwardClickGui;
+import ru.zov.implement.screens.menu.alpha.AlphaClickGui;
 
 @Mixin({Keyboard.class})
 public class KeyboardMixin {
@@ -28,7 +28,7 @@ public class KeyboardMixin {
       int modifiers = keyInput.modifiers();
       if (key != -1 && window == this.client.getWindow().getHandle()) {
          if (action == 0 && key == 344 && this.client.currentScreen == null) {
-            MoonwardClickGui.INSTANCE.openGui();
+            AlphaClickGui.INSTANCE.openGui();
          }
 
          EventManager.callEvent(new KeyEvent(this.client.currentScreen, Type.KEYSYM, key, action));
