@@ -9,7 +9,7 @@ import net.minecraft.util.Formatting;
 
 public interface QuickLogger {
    static Text getPrefix() {
-      MutableText text = Text.literal("[Z" + Formatting.BLUE + "O" + Formatting.RED + "V" + Formatting.RESET + "]");
+      MutableText text = Text.literal("[PL" + Formatting.BLUE + "U" + Formatting.RED + "S" + Formatting.RESET + "]");
       text.setStyle(text.getStyle().withColor(Formatting.WHITE));
       text.append(" -> ");
       return text;
