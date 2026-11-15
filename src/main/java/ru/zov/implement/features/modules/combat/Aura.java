@@ -307,7 +307,7 @@ public final class Aura extends Module {
         this.visualSprintUntilAge = Integer.MIN_VALUE;
         this.visualSprintPose = EntityPose.STANDING;
 
-        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync, this.fovSize, this.drawFovCircle, this.shardMinMinutes, this.shardMaxMinutes);
+        addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync);
 
         register(UseItemEvent.class, class059Var -> {
             if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
@@ -328,7 +328,7 @@ public final class Aura extends Module {
                 if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
                     EntityStatusS2CPacket entityStatusS2CPacket = packet;
                     if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
-                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 3L, TimeUnit.SECONDS);
+                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 2000L);
                     }
                 }
             }
@@ -490,7 +490,7 @@ public final class Aura extends Module {
             }
         }
 
-        int i3;
+        int i3 = 5;
         if (this.rotationMode.isSelected(AuraRotationMode.GRIM)) {
             i3 = 2;
         } else if (this.rotationMode.isSelected(AuraRotationMode.FUNTIME)) {
@@ -498,7 +498,7 @@ public final class Aura extends Module {
         } else if (this.rotationMode.isSelected(AuraRotationMode.SHARD)
         || this.rotationMode.isSelected(AuraRotationMode.SHARD_2)
         || this.rotationMode.isSelected(AuraRotationMode.BEZIER)) {
-    i3 = 3;
+            i3 = 3;
         }
 
         int i2;
@@ -604,7 +604,7 @@ public final class Aura extends Module {
                 this.sprintTicks = 1;
                 clientPlayerEntity.setSprinting(false);
             }
-            if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.mc.getGameOptions().useKey.isPressed()) {
+            if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.target != null) {
                 clientPlayerInteractionManager.stopUsingItem(clientPlayerEntity);
                 this.mc.getGameOptions().useKey.setPressed(false);
                 this.actionScheduler.cleanup().addTickStep(1, () -> {
@@ -630,7 +630,7 @@ public final class Aura extends Module {
 
     public void breakShieldWithAxe(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager) {
         if (this.breakShield.isValue()) {
-            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEyePos().subtract(this.target.getEyePos()).normalize()), -1.0D, 1.0D))) <= 90.0D) {
+            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEyePos().subtract(this.target.getEyePos()).normalize()), -1.0D, 1.0D))) < 50.0D) {
                 Optional<SlotSearchResult2> optionalFindItem = AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> itemStack.getItem() instanceof AxeItem, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
                 if (optionalFindItem.isEmpty() || !optionalFindItem.get().found()) {
                     return;
@@ -1044,7 +1044,7 @@ public final class Aura extends Module {
         boolean z = SimulatedPlayer.simulateLocalPlayer(i + 1).onGround;
         boolean z2 = SimulatedPlayer.simulateLocalPlayer(i + 2).onGround;
         boolean z3 = class136VarSimulateLocalPlayer.fallDistance > 1.0f && z;
-        return (class136VarSimulateLocalPlayer.onGround || class136VarSimulateLocalPlayer.fallDistance <= 0.0f || ((class136VarSimulateLocalPlayer.velocity.y > (-0.3d) ? 1 : (class136VarSimulateLocalPlayer.velocity.y > (-0.6d) ? 1 : 0)) != 0) || z2 || z3);
+        return (class136VarSimulateLocalPlayer.onGround || class136VarSimulateLocalPlayer.fallDistance <= 0.0f || ((class136VarSimulateLocalPlayer.velocity.y > (-0.3d) ? 1 : (class136VarSimulateLocalPlayer.velocity.y >= (-0.5d) ? 0 : -1)) > 0) || z2 || z3) && !class136VarSimulateLocalPlayer.isInLava() && !class136VarSimulateLocalPlayer.isSubmergedInWater() && !class136VarSimulateLocalPlayer.isClimbing();
     }
 
     private void updateMaceFallState(ClientPlayerEntity clientPlayerEntity) {
@@ -1570,7 +1570,7 @@ public final class Aura extends Module {
 
     public boolean verticalCollisionSnapshot(int i) {
         LivingEntity player = Mc.INSTANCE.getPlayer();
-        return ((Boolean) PlayerSnapshotManager.INSTANCE.getSnapshot(player, i).map(class373Var -> Boolean.valueOf(class373Var.verticalCollision)).orElse(Boolean.valueOf(((ClientPlayerEntity) player).verticalCollision))).booleanValue();
+        return ((Boolean) PlayerSnapshotManager.INSTANCE.getSnapshot(player, i).map(class373Var -> Boolean.valueOf(class373Var.verticalCollision)).orElse(Boolean.valueOf(((ClientPlayerEntity) player).isOnGround()))).booleanValue();
     }
 
     int getAttackDelay() {
