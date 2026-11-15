@@ -18,13 +18,13 @@ jobs:
       - name: Create moonward folder
         run: |
           mkdir -p src/main/java/ru/zov/implement/screens/menu/moonward
-          touch src/main/java/ru/zov/implement/screens/menu/moonward/.gitkeep
+          touch src/main/java/ru/zov/implement/screens/menu/alpha/.gitkeep
 
       - name: Commit folder
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/main/java/ru/zov/implement/screens/menu/moonward/.gitkeep
+          git add src/main/java/ru/zov/implement/screens/menu/alpha/.gitkeep
           git commit -m "Create moonward package" || exit 0
           git push
           
