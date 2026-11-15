@@ -38,10 +38,6 @@ public class SelectSetting extends Setting {
        return this.selected;
     }
 
-    public String currentValue() {
-       return this.selected;
-    }
-
     public String getSelected() {
        return this.selected;
     }
