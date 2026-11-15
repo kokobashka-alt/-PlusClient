@@ -27,7 +27,7 @@ public class AlphaClickGui extends MenuScreen {
     private static final float PANEL_H = 240.0F;
     private static final float SEARCH_W = 105.0F;
     private static final float SEARCH_H = 17.0F;
-    private static final int SEARCH_PX = 9;
+    private static final int SEARCH_PX = 10;
     private static final int SEARCH_MAX = 15;
 
     private final List<AlPanel> panels = new ArrayList<>();
@@ -39,6 +39,23 @@ public class AlphaClickGui extends MenuScreen {
     private float pivotX;
     private float pivotY;
     private float totalScale = 1.0F;
+
+    /**
+     * Faux-bold rendering: draws the same string several times with sub-pixel offsets so it visually thickens.
+     * Works with any text renderer (no bold atlas required).
+     */
+    private static void boldText(Matrix3x2fStack m, String text, float x, float y, int size, int color) {
+        final float o = 0.5F;
+        AlUi.text(m, text, x - o, y - o, size, color);
+        AlUi.text(m, text, x + o, y - o, size, color);
+        AlUi.text(m, text, x - o, y + o, size, color);
+        AlUi.text(m, text, x + o, y + o, size, color);
+        AlUi.text(m, text, x - o, y,     size, color);
+        AlUi.text(m, text, x + o, y,     size, color);
+        AlUi.text(m, text, x,     y - o, size, color);
+        AlUi.text(m, text, x,     y + o, size, color);
+        AlUi.text(m, text, x,     y,     size, color);
+    }
 
     @Override
     public void initialize() {
@@ -132,8 +149,11 @@ public class AlphaClickGui extends MenuScreen {
         boolean placeholder = search.isEmpty() && !searchFocused;
         String caret = searchFocused && System.currentTimeMillis() % 1000 > 500 ? "_" : "";
         String text = placeholder ? "Поиск" : search + caret;
-        int color = placeholder ? AlUi.rgba(150, 150, 150, (int) (255 * alpha)) : AlUi.rgba(255, 255, 255, (int) (255 * alpha));
-        AlUi.text(m, text, searchX + 6.0F, searchY + SEARCH_H / 2.0F, SEARCH_PX, color);
+        int color = placeholder
+                ? AlUi.rgba(190, 190, 190, (int) (255 * alpha))
+                : AlUi.rgba(255, 255, 255, (int) (255 * alpha));
+
+        boldText(m, text, searchX + 6.0F, searchY + SEARCH_H / 2.0F, SEARCH_PX, color);
     }
 
     @Override
