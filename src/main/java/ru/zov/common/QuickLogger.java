@@ -9,8 +9,12 @@ import net.minecraft.util.Formatting;
 
 public interface QuickLogger {
    static Text getPrefix() {
-      MutableText text = Text.literal("[PL" + Formatting.BLUE + "U" + Formatting.RED + "S" + Formatting.RESET + "]");
+      MutableText name = Text.literal("PLUS");
+      name.setStyle(name.getStyle().withColor(Formatting.GREEN));
+      MutableText text = Text.literal("[");
       text.setStyle(text.getStyle().withColor(Formatting.WHITE));
+      text.append(name);
+      text.append(Text.literal("]"));
       text.append(" -> ");
       return text;
    }
