@@ -10,7 +10,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import ru.zov.implement.features.modules.combat.killaura.type.Mc;
+import ru.zov.implement.features.modules.combat.killaura.Mc;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.neuro.BezierRecorder;
 import ru.zov.implement.features.modules.combat.killaura.neuro.HumanStep;
@@ -60,7 +60,15 @@ public class BezierRotationMode extends RotationMode {
     private float prevPitch;
 
     public BezierRotationMode() {
-        super("Bezier");
+        this("Bezier");
+    }
+
+    /**
+     * For modes that reuse this neural/fallback step and only reshape it before the mouse grid, e.g. AimAssist.
+     * The name is what the client shows in its mode picker.
+     */
+    protected BezierRotationMode(String name) {
+        super(name);
     }
 
     @Override
@@ -96,7 +104,7 @@ public class BezierRotationMode extends RotationMode {
 
         if (living == null || this.model == null) {
             this.endSegment();
-            return this.fallback(current, target, gcd);
+            return this.fallback(current, target, entity, gcd);
         }
 
         if (this.tracked != entity) {
@@ -107,10 +115,11 @@ public class BezierRotationMode extends RotationMode {
                 player, living, this.prevYaw, this.prevPitch);
         if (!this.features.fill(this.input, sample)) {
             this.endSegment();
-            return this.fallback(current, target, gcd);
+            return this.fallback(current, target, entity, gcd);
         }
 
         this.model.sample(this.input, this.rng, TEMPERATURE, this.step, this.headOut);
+        this.shapeStep(current, target, entity, this.step);
         float dy = this.quantizer.step(0, this.step[0], gcd);
         float dp = this.quantizer.step(1, this.step[1], gcd);
         this.prevYaw = dy;
@@ -205,10 +214,22 @@ public class BezierRotationMode extends RotationMode {
         }
     }
 
-    private Rotation fallback(Rotation current, Rotation target, double gcd) {        this.human.desired(current.getYaw(), current.getPitch(), target.getYaw(), target.getPitch(), this.humanWant);
+    private Rotation fallback(Rotation current, Rotation target, Entity entity, double gcd) {
+        this.human.desired(current.getYaw(), current.getPitch(), target.getYaw(), target.getPitch(), this.humanWant);
+        this.shapeStep(current, target, entity, this.humanWant);
         float dy = this.quantizer.step(0, this.humanWant[0], gcd);
         float dp = this.quantizer.step(1, this.humanWant[1], gcd);
         return this.apply(current, dy, dp);
+    }
+
+    /**
+     * Called after the model or the human fallback produced a step, but before it is snapped to the mouse grid.
+     * Override to reshape the step (AimAssist adds acceleration, deceleration, reaction and tremor here).
+     * The default implementation leaves it unchanged. {@code entity} is null on the return-to-camera path.
+     *
+     * @param step in/out: step[0] is yaw, step[1] is pitch, in degrees per tick
+     */
+    protected void shapeStep(Rotation current, Rotation target, Entity entity, float[] step) {
     }
 
     private Rotation apply(Rotation current, float dyaw, float dpitch) {
