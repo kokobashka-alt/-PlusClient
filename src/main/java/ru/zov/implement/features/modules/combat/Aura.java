@@ -21,7 +21,6 @@ import ru.zov.implement.features.modules.combat.killaura.util.EquipmentUtil;
 import ru.zov.implement.features.modules.combat.killaura.type.BezierRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.FuntimeRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.GrimRotationMode;
-import ru.zov.implement.features.modules.combat.killaura.util.GrimDelayHandler;
 import ru.zov.implement.features.modules.combat.killaura.type.HolyWorldRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.util.HitPointResolver;
 import ru.zov.implement.features.modules.combat.killaura.type.InventoryScope;
@@ -49,8 +48,6 @@ import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.config.RotationConfig;
 import ru.zov.implement.features.modules.combat.killaura.util.RotationManager;
 import ru.zov.implement.features.modules.combat.killaura.math.RotationMath;
-import ru.zov.implement.features.modules.combat.killaura.type.RotationMode;
-import ru.zov.implement.features.modules.combat.killaura.event.RotationUpdateEvent;
 import ru.zov.implement.features.modules.combat.killaura.math.RotationVector;
 import ru.zov.implement.features.modules.combat.killaura.util.ServerUtil;
 import ru.zov.implement.features.modules.combat.killaura.type.SettingUnit;
@@ -328,7 +325,12 @@ public final class Aura extends Module {
                 if ((class051Var.getPacket()) instanceof EntityStatusS2CPacket packet ) {
                     EntityStatusS2CPacket entityStatusS2CPacket = packet;
                     if (entityStatusS2CPacket.getStatus() == 30 && entityStatusS2CPacket.getEntity(this.mc.getWorld()) == this.target) {
-                        AuraRuntime.INSTANCE.notificationRepository().post(NotificationType.SUCCESS, (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()), 2000L);
+                        AuraRuntime.INSTANCE.notificationRepository().post(
+                                NotificationType.SUCCESS,
+                                (Text) Text.literal("Сломал щит игроку " + this.target.getName().getString()),
+                                2000L,
+                                TimeUnit.MILLISECONDS
+                        );
                     }
                 }
             }
@@ -529,7 +531,7 @@ public final class Aura extends Module {
     }
 
     private Vec3d getFunTimeAimPoint(LivingEntity target, float range, ClientPlayerEntity player) {
-        if (target != lastPointTarget) {
+        if (target != lastPointTarget) { 
             lastPointTarget = target;
             pointHitCount = -1;
         }
@@ -604,7 +606,7 @@ public final class Aura extends Module {
                 this.sprintTicks = 1;
                 clientPlayerEntity.setSprinting(false);
             }
-            if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.target != null) {
+            if (this.unpressShield.isValue() && clientPlayerEntity.isUsingItem() && clientPlayerEntity.getActiveItem().getItem() == Items.SHIELD && this.mc.getGameOptions().useKey.isPressed() && this.target != null && this.target.isAlive()) {
                 clientPlayerInteractionManager.stopUsingItem(clientPlayerEntity);
                 this.mc.getGameOptions().useKey.setPressed(false);
                 this.actionScheduler.cleanup().addTickStep(1, () -> {
@@ -630,7 +632,7 @@ public final class Aura extends Module {
 
     public void breakShieldWithAxe(ClientPlayerEntity clientPlayerEntity, ClientPlayerInteractionManager clientPlayerInteractionManager) {
         if (this.breakShield.isValue()) {
-            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getEyePos().subtract(this.target.getEyePos()).normalize()), -1.0D, 1.0D))) < 50.0D) {
+            if (this.target.getActiveItem().getItem() == Items.SHIELD && isActiveItemStackBlocking(this.target, 2) && Math.toDegrees(Math.acos(MathUtil.clamp(this.target.getRotationVec(1.0f).normalize().dotProduct(clientPlayerEntity.getPos().subtract(this.target.getPos()).normalize()), -1.0D, 1.0D))) < 45.0D) {
                 Optional<SlotSearchResult2> optionalFindItem = AuraRuntime.INSTANCE.inventoryService().searcher().findItem(itemStack -> itemStack.getItem() instanceof AxeItem, InventoryScope.HOTBAR, InventoryScope.INVENTORY);
                 if (optionalFindItem.isEmpty() || !optionalFindItem.get().found()) {
                     return;
@@ -1044,7 +1046,7 @@ public final class Aura extends Module {
         boolean z = SimulatedPlayer.simulateLocalPlayer(i + 1).onGround;
         boolean z2 = SimulatedPlayer.simulateLocalPlayer(i + 2).onGround;
         boolean z3 = class136VarSimulateLocalPlayer.fallDistance > 1.0f && z;
-        return (class136VarSimulateLocalPlayer.onGround || class136VarSimulateLocalPlayer.fallDistance <= 0.0f || ((class136VarSimulateLocalPlayer.velocity.y > (-0.3d) ? 1 : (class136VarSimulateLocalPlayer.velocity.y >= (-0.5d) ? 0 : -1)) > 0) || z2 || z3) && !class136VarSimulateLocalPlayer.isInLava() && !class136VarSimulateLocalPlayer.isSubmergedInWater() && !class136VarSimulateLocalPlayer.isClimbing();
+        return (class136VarSimulateLocalPlayer.onGround || class136VarSimulateLocalPlayer.fallDistance <= 0.0f || ((class136VarSimulateLocalPlayer.velocity.y > (-0.3d) ? 1 : (class136VarSimulateLocalPlayer.velocity.y < 0.0d ? 0 : 1)) != 0) && z2) || z3;
     }
 
     private void updateMaceFallState(ClientPlayerEntity clientPlayerEntity) {
