@@ -1,10 +1,8 @@
 package ru.zov.implement.screens.menu.alpha;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import ru.zov.api.file.FileController;
-import ru.zov.api.file.FileRepository;
+import ru.zov.api.file.ConfigFiles;
 import ru.zov.api.file.exception.FileProcessingException;
 import ru.zov.core.Main;
 import ru.zov.core.client.ClientInfoProvider;
@@ -16,21 +14,17 @@ final class AlConfigs {
 
     static List<String> list() {
         List<String> names = new ArrayList<>();
-        File[] files = Main.getInstance().getClientInfoProvider().configsDir().listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isFile() && file.getName().endsWith(".json")) {
-                    names.add(file.getName().substring(0, file.getName().length() - ".json".length()));
-                }
-            }
-        }
-        names.sort(String.CASE_INSENSITIVE_ORDER);
+        names.addAll(ConfigFiles.list(Main.getInstance().getClientInfoProvider().configsDir()));
         return names;
     }
 
     static boolean save(String name) {
+        String clean = ConfigFiles.normalizeName(name);
+        if (clean == null) {
+            return false;
+        }
         try {
-            Main.getInstance().getFileController().saveFile(name + ".json");
+            Main.getInstance().getFileController().saveFile(ConfigFiles.fileName(clean));
             return true;
         } catch (Exception e) {
             return false;
@@ -38,23 +32,19 @@ final class AlConfigs {
     }
 
     static boolean load(String name) {
+        String clean = ConfigFiles.normalizeName(name);
+        if (clean == null) {
+            return false;
+        }
         Main main = Main.getInstance();
         ClientInfoProvider info = main.getClientInfoProvider();
-        if (!new File(info.configsDir(), name + ".json").exists()) {
+        if (!ConfigFiles.file(info.configsDir(), clean).isFile()) {
             return false;
         }
         try {
-            FileRepository repository = new FileRepository();
-            repository.setup(main);
-            FileController controller = new FileController(repository.getClientFiles(), info.filesDir(), info.configsDir());
-            try {
-                controller.loadFile(name + ".json");
-            } finally {
-                // The controller starts its own auto-save timer; this one is only needed for the single load.
-                controller.stopAutoSave();
-            }
+            main.getFileController().loadFile(ConfigFiles.fileName(clean));
             return true;
-        } catch (FileProcessingException e) {
+        } catch (FileProcessingException | RuntimeException e) {
             return false;
         }
     }
