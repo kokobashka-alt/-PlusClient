@@ -1,13 +1,16 @@
 package ru.zov.implement.features.modules.combat;
 
+import java.util.Random;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.AxeItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
-import ru.nexusguard.protection.annotations.Native;
+import net.minecraft.util.hit.HitResult;
 import ru.zov.api.event.EventHandler;
 import ru.zov.api.feature.module.Module;
 import ru.zov.api.feature.module.ModuleCategory;
@@ -16,126 +19,380 @@ import ru.zov.api.feature.module.setting.implement.MultiSelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
+import ru.zov.common.util.world.ServerUtil;
+import ru.zov.implement.events.player.AttackEvent;
+import ru.zov.implement.events.player.InputEvent;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.common.util.rotation.AngleUtil;
-import ru.zov.common.util.rotation.RaytracingUtil;
 
 public class TriggerBot extends Module {
+   private static final long CROSSHAIR_GRACE_MS = 80L;
 
-    private LivingEntity target = null;
+   private static final class Timer {
+      private long start = System.currentTimeMillis();
 
-    // Настройки (взяты из исходника)
-    public final MultiSelectSetting conditions = new MultiSelectSetting("Условия", "Настройки атаки")
-            .value("Crits With Space", "Break Shield", "UnPress Shield", "No Attack When Eat")
-            .selected("Break Shield", "UnPress Shield");
+      void reset() {
+         this.start = System.currentTimeMillis();
+      }
 
-    public final BooleanSetting weaponOnly = new BooleanSetting("Только с оружием", "Бить только с мечом/топором")
-            .setValue(true);
+      boolean hasElapsed(long ms) {
+         return System.currentTimeMillis() - this.start >= ms;
+      }
+   }
 
-    public final ValueSetting reach = new ValueSetting("Дистанция", "Максимальная дистанция удара")
-            .setValue(3.0f).range(1.0f, 6.0f);
+   private final MultiSelectSetting targets = new MultiSelectSetting("Targets", "Какие цели бить")
+      .value("Mobs", "Invisible", "Naked", "Friends")
+      .selected("Invisible");
+   private final BooleanSetting attackInWater = new BooleanSetting("Attack In Water", "Бить в воде").setValue(true);
+   private final BooleanSetting onlyWeapon = new BooleanSetting("Only Weapon", "Только с оружием в руке").setValue(true);
+   private final BooleanSetting onlyCrits = new BooleanSetting("Only Crits", "Бить только критами").setValue(false);
+   private final BooleanSetting mace = new BooleanSetting("Mace", "Считать булаву оружием").setValue(false);
+   private final ValueSetting maceCharge = new ValueSetting("Mace charge", "Заряд кулдауна для булавы, %")
+      .setValue(15.0F)
+      .range(1, 100)
+      .visible(this.mace::isValue);
+   private final ValueSetting comboCharge = new ValueSetting("Combo charge", "Заряд кулдауна для остального оружия, %")
+      .setValue(80.0F)
+      .range(1, 100);
+   private final BooleanSetting sprintReset = new BooleanSetting("Sprint Reset", "Сбрасывать спринт перед критом").setValue(true);
+   private final ValueSetting sprintPauseMin = new ValueSetting("Sprint Pause min", "Минимальная пауза спринта, мс")
+      .setValue(50.0F)
+      .range(0, 250)
+      .visible(this.sprintReset::isValue);
+   private final ValueSetting sprintPauseMax = new ValueSetting("Sprint Pause max", "Максимальная пауза спринта, мс")
+      .setValue(100.0F)
+      .range(0, 250)
+      .visible(this.sprintReset::isValue);
+   private final BooleanSetting wTap = new BooleanSetting("WTap", "Отпускать вперёд на 3 тика после удара").setValue(false);
+   private final BooleanSetting tpsSync = new BooleanSetting("TPS Sync", "Подстраивать задержку под TPS сервера").setValue(true);
+   private final ValueSetting hitChance = new ValueSetting("Hit Chance", "Шанс совершить удар, %")
+      .setValue(100.0F)
+      .range(0, 100);
+   private final ValueSetting swapDelayMin = new ValueSetting("Swap Delay min", "Минимальная задержка после смены слота, мс")
+      .setValue(40.0F)
+      .range(0, 150);
+   private final ValueSetting swapDelayMax = new ValueSetting("Swap Delay max", "Максимальная задержка после смены слота, мс")
+      .setValue(70.0F)
+      .range(0, 150);
 
-    public final BooleanSetting throughWalls = new BooleanSetting("Сквозь стены", "Бить сквозь блоки")
-            .setValue(false);
+   private final Random random = new Random();
+   private final Timer attackTimer = new Timer();
+   private final Timer swapTimer = new Timer();
+   private final Timer sprintResetTimer = new Timer();
 
-    public static TriggerBot getInstance() {
-        return (TriggerBot) Instance.get(TriggerBot.class);
-    }
+   private LivingEntity target;
+   private Entity pendingTarget;
+   private long crosshairSeenAt;
+   private int lastSlot = -1;
+   private int activeSwapDelay;
+   private int activeSprintPause;
+   private int pendingAttackDelay = -1;
+   private float wTapPauseTicks;
+   private boolean resettingSprint;
+   private boolean sprintReleased;
+   private boolean wasSprintingBeforeAttack;
 
-    public TriggerBot() {
-        super("TriggerBot", "Trigger Bot", ModuleCategory.COMBAT);
-        this.setup(conditions, weaponOnly, reach, throughWalls);
-    }
+   public TriggerBot() {
+      super("TriggerBot", "Trigger Bot", ModuleCategory.COMBAT);
+      this.setup(
+         this.targets,
+         this.attackInWater,
+         this.onlyWeapon,
+         this.mace,
+         this.maceCharge,
+         this.comboCharge,
+         this.sprintReset,
+         this.sprintPauseMin,
+         this.sprintPauseMax,
+         this.onlyCrits,
+         this.wTap,
+         this.tpsSync,
+         this.swapDelayMin,
+         this.swapDelayMax,
+         this.hitChance
+      );
+   }
 
-    @Override
-    public void deactivate() {
-        this.target = null;
-        super.deactivate();
-    }
+   public static TriggerBot getInstance() {
+      return (TriggerBot) Instance.get(TriggerBot.class);
+   }
 
-    @EventHandler
-    @Native
-    public void onTick(TickEvent e) {
-        if (mc.player == null || mc.world == null) return;
+   public LivingEntity getTarget() {
+      return this.target;
+   }
 
-        // Check for weapon using the item display name; SwordItem is unavailable in this Minecraft version.
-        if (weaponOnly.isValue() && !isWeapon(mc.player.getMainHandStack())) {
-            this.target = null;
-            return;
-        }
+   @Override
+   public void deactivate() {
+      this.endSprintReset();
+      this.wTapPauseTicks = 0.0F;
+      this.pendingTarget = null;
+      this.target = null;
+      this.lastSlot = -1;
+      super.deactivate();
+   }
 
-        // 2. Рейкаст в сущность
-        EntityHitResult hit = (EntityHitResult) RaytracingUtil.raytraceEntity(
-                reach.getValue(),
-                AngleUtil.cameraAngle(),
-                s -> !FriendUtils.isFriend(s.getName().getString()) && s instanceof LivingEntity
-        );
+   @EventHandler
+   public void onAttack(AttackEvent e) {
+      this.resetAttackTimers();
+   }
 
-        // Если не нашли цель напрямую, и включен режим "сквозь стены"
-        if (hit == null && throughWalls.isValue()) {
-            // Ищем ближайшую цель в радиусе
-            target = findTargetThroughWalls();
-        } else if (hit != null && hit.getEntity() instanceof LivingEntity entity) {
-            this.target = entity;
-        } else {
-            this.target = null;
-        }
+   @EventHandler
+   public void onInput(InputEvent e) {
+      if (this.resettingSprint) {
+         e.setForward(false);
+         e.setSprint(false);
+         if (mc.player != null) {
+            mc.player.setSprinting(false);
+         }
+      }
 
-        if (this.target == null) return;
+      if (this.wTapPauseTicks > 0.0F) {
+         e.setForward(false);
+         this.wTapPauseTicks--;
+      }
+   }
 
-        // 3. Проверка кулдауна
-        if (mc.player.getAttackCooldownProgress(0.5F) <= 0.9F) {
-            return;
-        }
+   @EventHandler
+   public void onTick(TickEvent e) {
+      if (mc.player == null || mc.world == null || mc.currentScreen != null || mc.isPaused() || mc.interactionManager == null) {
+         this.endSprintReset();
+         this.target = null;
+         return;
+      }
 
-        // 4. Проверка условий
-        if (conditions.isSelected("No Attack When Eat") && mc.player.isUsingItem()) {
-            return;
-        }
-        if (conditions.isSelected("Crits With Space")
-                && mc.player.isOnGround() && mc.options.jumpKey.isPressed()) {
-            return;
-        }
+      this.trackSlotChange();
 
-        // 5. Отжимаем щит
-        if (conditions.isSelected("UnPress Shield")
-                && mc.player.isUsingItem() && mc.player.getActiveItem().isOf(Items.SHIELD)) {
-            mc.interactionManager.stopUsingItem(mc.player);
-        }
+      if (mc.player.isUsingItem() || mc.player.hasVehicle() || mc.player.isSleeping()
+         || mc.player.isTouchingWater() && !this.attackInWater.isValue()) {
+         this.endSprintReset();
+         this.target = null;
+         return;
+      }
 
-        // 6. Атакуем
-        mc.interactionManager.attackEntity(mc.player, this.target);
-        mc.player.swingHand(Hand.MAIN_HAND);
-    }
+      Entity entity = this.findCrosshairTarget();
+      this.target = entity instanceof LivingEntity living ? living : null;
+      boolean visible = entity != null && mc.player.canSee(entity);
+      boolean sprintResetWindow = visible
+         && this.sprintReset.isValue()
+         && this.isReadyForCrit()
+         && !mc.player.isOnGround()
+         && mc.player.getVelocity().y <= 0.0;
 
-    private boolean isWeapon(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        if (stack.getItem() instanceof AxeItem) return true;
+      if (this.sprintReleased && !sprintResetWindow) {
+         this.endSprintReset();
+      }
 
-        String name = stack.getItem().getName().getString().toLowerCase();
-        return name.contains("sword") || name.contains("меч") || name.contains("mace");
-    }
+      this.tickSprintReset();
+      if (!visible) {
+         return;
+      }
 
-    private LivingEntity findTargetThroughWalls() {
-        LivingEntity best = null;
-        double bestDist = Double.MAX_VALUE;
-        double range = reach.getValue();
+      if (sprintResetWindow && mc.player.isSprinting()) {
+         if (!this.resettingSprint) {
+            this.beginSprintReset();
+         }
 
-        for (net.minecraft.entity.Entity entity : mc.world.getEntities()) {
-            if (!(entity instanceof LivingEntity living)) continue;
-            if (living == mc.player || !living.isAlive()) continue;
-            if (living instanceof PlayerEntity p && FriendUtils.isFriend(p)) continue;
+         return;
+      }
 
-            double dist = mc.player.distanceTo(living);
-            if (dist <= range && dist < bestDist) {
-                best = living;
-                bestDist = dist;
-            }
-        }
-        return best;
-    }
+      boolean critical = this.canCriticalHit();
+      if (this.onlyCrits.isValue() && !critical) {
+         return;
+      }
 
-    public LivingEntity getTarget() {
-        return this.target;
-    }
+      boolean waitingForCrit = !critical && this.isReadyForCrit() && !(mc.player.isOnGround() && !mc.options.jumpKey.isPressed());
+      if (waitingForCrit || !this.canAttackNow(critical)) {
+         return;
+      }
+
+      if (this.hitChance.getValue() < 100.0F && Math.random() * 100.0 >= this.hitChance.getValue()) {
+         this.resetAttackTimers();
+         this.wasSprintingBeforeAttack = true;
+      } else {
+         this.performAttack(entity);
+      }
+   }
+
+   private void trackSlotChange() {
+      int slot = mc.player.getInventory().getSelectedSlot();
+      if (slot == this.lastSlot) {
+         return;
+      }
+
+      this.lastSlot = slot;
+      if (this.isCombatWeapon(mc.player.getMainHandStack())) {
+         this.activeSwapDelay = this.nextRandomInRange(this.swapDelayMin.getValue(), this.swapDelayMax.getValue());
+         this.swapTimer.reset();
+      }
+   }
+
+   private Entity findCrosshairTarget() {
+      Entity entity = null;
+      HitResult hit = mc.crosshairTarget;
+      if (hit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof LivingEntity) {
+         entity = entityHit.getEntity();
+      }
+
+      boolean inGrace = this.isValidTarget(this.pendingTarget) && System.currentTimeMillis() - this.crosshairSeenAt < CROSSHAIR_GRACE_MS;
+      if (this.isValidTarget(entity)) {
+         this.pendingTarget = entity;
+         this.crosshairSeenAt = System.currentTimeMillis();
+         return entity;
+      }
+
+      if (inGrace) {
+         return this.pendingTarget;
+      }
+
+      this.pendingTarget = null;
+      return null;
+   }
+
+   private boolean isValidTarget(Entity candidate) {
+      if (candidate == null || mc.player == null || !candidate.isAlive() || candidate == mc.player) {
+         return false;
+      }
+
+      if (candidate.isInvisible() && !this.targets.isSelected("Invisible")) {
+         return false;
+      }
+
+      if (this.onlyWeapon.isValue() && !this.isCombatWeapon(mc.player.getMainHandStack())) {
+         return false;
+      }
+
+      if (!this.targets.isSelected("Mobs") && !(candidate instanceof PlayerEntity)) {
+         return false;
+      }
+
+      if (!(candidate instanceof PlayerEntity player)) {
+         return true;
+      }
+
+      if (!this.targets.isSelected("Friends") && FriendUtils.isFriend(player)) {
+         return false;
+      }
+
+      AntiBot antiBot = AntiBot.getInstance();
+      if (antiBot != null && antiBot.isBot(player)) {
+         return false;
+      }
+
+      return this.hasAnyArmor(player) || this.targets.isSelected("Naked");
+   }
+
+   private void performAttack(Entity entity) {
+      if (this.wTap.isValue()) {
+         this.wTapPauseTicks += 3.0F;
+      }
+
+      mc.interactionManager.attackEntity(mc.player, entity);
+      mc.player.swingHand(Hand.MAIN_HAND);
+      this.resetAttackTimers();
+   }
+
+   private boolean canCriticalHit() {
+      return this.isReadyForCrit()
+         && !mc.player.isOnGround()
+         && mc.player.getY() < mc.player.lastY
+         && mc.player.getVelocity().y < 0.0
+         && mc.player.fallDistance > 0.0;
+   }
+
+   private boolean isReadyForCrit() {
+      return !mc.player.isClimbing()
+         && !mc.player.isTouchingWater()
+         && !mc.player.hasStatusEffect(StatusEffects.BLINDNESS)
+         && !mc.player.hasVehicle()
+         && !mc.player.isGliding()
+         && !mc.player.getAbilities().flying
+         && (!mc.player.isSprinting() || this.sprintReset.isValue());
+   }
+
+   private boolean canAttackNow(boolean critical) {
+      if (this.wTapPauseTicks > 0.0F) {
+         return false;
+      }
+
+      if (this.activeSwapDelay > 0 && !this.swapTimer.hasElapsed(this.activeSwapDelay)) {
+         return false;
+      }
+
+      float cooldown = mc.player.getAttackCooldownProgress(0.5F);
+      boolean maceInHand = this.mace.isValue() && mc.player.getMainHandStack().isOf(Items.MACE);
+      float required = (maceInHand ? this.maceCharge.getValue() : this.comboCharge.getValue()) / 100.0F;
+      if (critical && !maceInHand) {
+         if (cooldown <= 0.9F) {
+            return false;
+         }
+
+         required = 0.9F;
+      } else if (cooldown < required) {
+         return false;
+      }
+
+      if (critical && !this.wasSprintingBeforeAttack) {
+         return true;
+      }
+
+      float tps = this.tpsSync.isValue() ? Math.max(5.0F, Math.min(20.0F, ServerUtil.TPS)) : 20.0F;
+      float waitTicks = Math.max(0.0F, mc.player.getAttackCooldownProgressPerTick() * required - 0.5F);
+      if (this.pendingAttackDelay < 0) {
+         this.pendingAttackDelay = this.random.nextInt(61);
+      }
+
+      return this.attackTimer.hasElapsed((long) Math.ceil(waitTicks * 1000.0F / tps) + this.pendingAttackDelay);
+   }
+
+   private void resetAttackTimers() {
+      this.attackTimer.reset();
+      this.pendingAttackDelay = -1;
+      this.wasSprintingBeforeAttack = false;
+      this.sprintReleased = false;
+   }
+
+   private void beginSprintReset() {
+      this.activeSprintPause = this.nextRandomInRange(this.sprintPauseMin.getValue(), this.sprintPauseMax.getValue());
+      this.sprintResetTimer.reset();
+      this.resettingSprint = true;
+      this.sprintReleased = true;
+   }
+
+   private void tickSprintReset() {
+      if (!this.resettingSprint) {
+         return;
+      }
+
+      boolean pauseOver = this.activeSprintPause == 0 || this.sprintResetTimer.hasElapsed(this.activeSprintPause);
+      if (mc.player == null || !this.sprintReset.isValue() || !this.sprintReleased && pauseOver) {
+         this.endSprintReset();
+      }
+   }
+
+   private void endSprintReset() {
+      this.resettingSprint = false;
+      this.sprintReleased = false;
+   }
+
+   private int nextRandomInRange(float a, float b) {
+      int low = Math.round(Math.min(a, b));
+      int high = Math.round(Math.max(a, b));
+      return this.random.nextInt(low, high + 1);
+   }
+
+   private boolean isCombatWeapon(ItemStack stack) {
+      return stack.isIn(ItemTags.SWORDS)
+         || stack.isIn(ItemTags.AXES)
+         || stack.isOf(Items.TRIDENT)
+         || this.mace.isValue() && stack.isOf(Items.MACE);
+   }
+
+   private boolean hasAnyArmor(PlayerEntity player) {
+      for (ItemStack stack : player.getInventory().getArmorStacks()) {
+         if (!stack.isEmpty()) {
+            return true;
+         }
+      }
+
+      return false;
+   }
 }
