@@ -467,7 +467,8 @@ public class TargetESP extends Module {
         boolean redSuit = suit == 1 || suit == 2;
         int suitColor = ColorUtil.multAlpha(redSuit ? 0xFFD8263A : 0xFF16161C, alpha);
 
-        cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, ColorUtil.multAlpha(0xFFF7F3EA, alpha), depth);
+        if (front) {
+            cardRect(pos, u, v, dir, 1, -hw, -hh, hw, hh, ColorUtil.multAlpha(0xFFF7F3EA, alpha), depth);
             cardFrame(pos, u, v, dir, 2, hw * 0.84, hh * 0.88, 0.014 * size, suitColor, depth);
             cardSuit(pos, u, v, dir, 3, suit, 0.0, 0.0, 0.25 * size, false, suitColor, depth);
             cardSuit(pos, u, v, dir, 3, suit, -hw * 0.62, hh * 0.68, 0.075 * size, false, suitColor, depth);
