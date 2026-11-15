@@ -5,12 +5,17 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +36,7 @@ import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.api.file.ClientFile;
 import ru.zov.api.file.exception.FileLoadException;
 import ru.zov.api.file.exception.FileSaveException;
+import ru.zov.common.util.logger.LoggerUtil;
 import ru.zov.core.Main;
 
 public class ModuleFile extends ClientFile {
@@ -53,6 +59,10 @@ public class ModuleFile extends ClientFile {
    @Native
    @Override
    public void loadFromFile(File path) throws FileLoadException {
+      if (!new File(path, this.getName() + ".json").isFile()) {
+         return;
+      }
+
       this.loadFromFile(path, this.getName() + ".json");
    }
 
@@ -146,20 +156,49 @@ public class ModuleFile extends ClientFile {
 
    @Native
    private void writeJsonToFile(JsonObject functionObject, File file) throws FileSaveException {
-      try (FileWriter writer = new FileWriter(file)) {
-         this.GSON.toJson(functionObject, writer);
+      // Written to a temp file and moved into place, so an interrupted write cannot leave a truncated config behind.
+      Path target = file.toPath().toAbsolutePath();
+      Path temp = null;
+      try {
+         Files.createDirectories(target.getParent());
+         temp = Files.createTempFile(target.getParent(), file.getName(), ".tmp");
+         try (Writer writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
+            this.GSON.toJson(functionObject, writer);
+         }
+
+         try {
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+         } catch (AtomicMoveNotSupportedException e) {
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+         }
       } catch (IOException e) {
+         if (temp != null) {
+            try {
+               Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+            }
+         }
+
          throw new FileSaveException("Failed to save module to file", e);
       }
    }
 
    @Native
    private JsonObject readJsonFromFile(File file) throws FileLoadException {
-      try (FileReader reader = new FileReader(file)) {
-         return JsonParser.parseReader(reader).getAsJsonObject();
+      if (!file.isFile()) {
+         throw new FileLoadException("Config file not found: " + file.getName());
+      }
+
+      try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+         JsonElement root = JsonParser.parseReader(reader);
+         if (root == null || !root.isJsonObject()) {
+            throw new FileLoadException("Config file is empty or is not a JSON object: " + file.getName());
+         }
+
+         return root.getAsJsonObject();
       } catch (IOException e) {
          throw new FileLoadException("Failed to load module from file", e);
-      } catch (JsonSyntaxException | JsonIOException e) {
+      } catch (JsonParseException e) {
          throw new FileLoadException("Failed to parse JSON from file", e);
       }
    }
@@ -167,29 +206,45 @@ public class ModuleFile extends ClientFile {
    @Native
    private void updateModulesFromJsonObject(JsonObject functionObject) {
       for (Module module : this.moduleRepository.modules()) {
-         JsonObject moduleObject = functionObject.getAsJsonObject(module.getName().toLowerCase());
-         if (moduleObject != null) {
-            if (moduleObject.has("bind") && moduleObject.has("state")) {
-               module.setKey(moduleObject.get("bind").getAsInt());
-               module.setState(moduleObject.get("state").getAsBoolean());
-            }
+         try {
+            JsonObject moduleObject = functionObject.getAsJsonObject(module.getName().toLowerCase());
+            if (moduleObject != null) {
+               if (moduleObject.has("bind") && moduleObject.has("state")) {
+                  module.setKey(moduleObject.get("bind").getAsInt());
+                  module.setState(moduleObject.get("state").getAsBoolean());
+               }
 
-            module.settings().forEach(setting -> this.updateSettingFromJsonObject(moduleObject, setting));
+               module.settings().forEach(setting -> this.updateSettingFromJsonObject(moduleObject, setting));
+            }
+         } catch (RuntimeException e) {
+            LoggerUtil.warn("Skipped module " + module.getName() + " while loading config: " + e);
          }
       }
 
       for (AbstractDraggable draggable : this.draggableRepository.draggable()) {
-         JsonObject draggableObject = functionObject.getAsJsonObject(draggable.getName().toLowerCase());
-         if (draggableObject != null && draggableObject.has("posX") && draggableObject.has("posY") && draggableObject.has("size")) {
-            draggable.setX(draggableObject.get("posX").getAsInt());
-            draggable.setY(draggableObject.get("posY").getAsInt());
-            draggable.setSize(draggableObject.get("size").getAsDouble());
+         try {
+            JsonObject draggableObject = functionObject.getAsJsonObject(draggable.getName().toLowerCase());
+            if (draggableObject != null && draggableObject.has("posX") && draggableObject.has("posY") && draggableObject.has("size")) {
+               draggable.setX(draggableObject.get("posX").getAsInt());
+               draggable.setY(draggableObject.get("posY").getAsInt());
+               draggable.setSize(draggableObject.get("size").getAsDouble());
+            }
+         } catch (RuntimeException e) {
+            LoggerUtil.warn("Skipped element " + draggable.getName() + " while loading config: " + e);
          }
       }
    }
 
    @Native
    private void updateSettingFromJsonObject(JsonObject moduleObject, Setting setting) {
+      try {
+         this.applySetting(moduleObject, setting);
+      } catch (RuntimeException e) {
+         LoggerUtil.warn("Skipped setting " + setting.getName() + " while loading config: " + e);
+      }
+   }
+
+   private void applySetting(JsonObject moduleObject, Setting setting) {
       JsonElement settingElement = moduleObject.get(setting.getName());
       if (settingElement != null && !settingElement.isJsonNull()) {
          if (setting instanceof BooleanSetting booleanSetting) {
