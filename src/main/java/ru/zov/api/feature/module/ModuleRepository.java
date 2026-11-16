@@ -85,6 +85,7 @@ import ru.zov.implement.features.modules.movement.AirStuck;
 import ru.zov.implement.features.modules.combat.PacketCriticals;
 import ru.zov.implement.features.modules.combat.AntiTotem;
 import ru.zov.implement.features.modules.render.OldCelestialHud;
+import ru.zov.implement.features.modules.combat.CrystalAura2;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -173,7 +174,8 @@ public class ModuleRepository {
             new AirStuck(),
             new PacketCriticals(),
             new AntiTotem(),
-            new OldCelestialHud()
+            new OldCelestialHud(),
+            new CrystalAura2()
         );
     }
 
