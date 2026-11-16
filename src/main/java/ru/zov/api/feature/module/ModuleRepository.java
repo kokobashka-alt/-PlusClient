@@ -86,6 +86,8 @@ import ru.zov.implement.features.modules.combat.PacketCriticals;
 import ru.zov.implement.features.modules.combat.AntiTotem;
 import ru.zov.implement.features.modules.render.OldCelestialHud;
 import ru.zov.implement.features.modules.combat.CrystalAura2;
+import ru.zov.implement.features.modules.render.ShaderHands;
+import ru.zov.implement.features.modules.render.FakePlayer;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -175,7 +177,9 @@ public class ModuleRepository {
             new PacketCriticals(),
             new AntiTotem(),
             new OldCelestialHud(),
-            new CrystalAura2()
+            new CrystalAura2(),
+            new ShaderHands(),
+            new FakePlayer()
         );
     }
 
