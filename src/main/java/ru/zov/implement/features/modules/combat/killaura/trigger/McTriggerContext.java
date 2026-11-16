@@ -9,26 +9,11 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import ru.zov.implement.features.modules.combat.killaura.type.Mc;
 
-/**
- * Minecraft glue for {@link TriggerBot}. Everything that depends on the client's mappings is in this file; the core
- * does not import Minecraft at all.
- *
- * <p>Assumed Yarn 1.21.x names, all checked against the public client API at the time of writing:
- * {@code MinecraftClient#crosshairTarget}, {@code EntityHitResult#getEntity}, {@code Entity#isAlive},
- * {@code Entity#squaredDistanceTo}, {@code ClientPlayerEntity#getAttackCooldownProgress},
- * {@code ClientPlayerEntity#isUsingItem}, {@code ClientPlayerInteractionManager#attackEntity},
- * {@code LivingEntity#swingHand}, {@code Hand#MAIN_HAND}. If your fork renames one, the compiler points at the exact
- * line; no offsets or mixins are involved.
- *
- * <p>The target comes from the vanilla crosshair, so a wall between the eye and the entity already prevents the
- * click. The distance check is only a second safety net.
- */
-public final class McTriggerContext implements TriggerBot.Context {
-    /** Vanilla-like interaction range. Tune it to your server; the crosshair target is already range-checked. */
+/** Minecraft interaction helpers for the crosshair target. */
+public final class McTriggerContext {
     public static final double DEFAULT_REACH = 4.0;
 
     private final double reachSquared;
-
     private LivingEntity cached;
     private int cachedId = -1;
 
@@ -41,7 +26,6 @@ public final class McTriggerContext implements TriggerBot.Context {
         this.reachSquared = safeReach * safeReach;
     }
 
-    @Override
     public int targetId() {
         this.cached = null;
         this.cachedId = -1;
@@ -64,7 +48,6 @@ public final class McTriggerContext implements TriggerBot.Context {
         return this.cachedId;
     }
 
-    @Override
     public boolean valid(int id) {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
         LivingEntity target = this.cached;
@@ -76,13 +59,11 @@ public final class McTriggerContext implements TriggerBot.Context {
                 && player.squaredDistanceTo(target) <= this.reachSquared;
     }
 
-    @Override
     public boolean ready(float cooldownThreshold) {
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
         return player != null && player.getAttackCooldownProgress(0.5F) >= cooldownThreshold;
     }
 
-    @Override
     public boolean busy() {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
@@ -93,7 +74,6 @@ public final class McTriggerContext implements TriggerBot.Context {
                 || client.currentScreen != null;
     }
 
-    @Override
     public void attack(int id) {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = Mc.INSTANCE.getPlayer();
