@@ -2,91 +2,43 @@ package ru.zov.implement.features.modules.render;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import ru.zov.PlusClient; // Путь к вашему главному классу клиента (при необходимости измените)
-import ru.zov.implement.features.modules.Module; // Путь к базовому классу модулей
-import ru.zov.implement.utils.RenderUtils; // Путь к утилитам рендеринга (при необходимости измените)
+import ru.zov.implement.features.draggables.DeluxeManager;
+import ru.zov.implement.features.modules.Module;
 
-import java.awt.Color;
-import java.util.Comparator;
-
-public class DeluxeHud {
+public class DeluxeHud extends Module {
     private final Minecraft mc = Minecraft.getMinecraft();
+    
+    // Менеджер, управляющий всеми вашими виджетами (Watermark, TargetHud, Staff и т.д.)
+    public static DeluxeManager deluxeManager;
 
-    /**
-     * Основной метод отрисовки HUD, вызываемый каждый кадр (например, при событии Render2DEvent)
-     */
-    public void drawHud() {
-        if (mc.gameSettings.showDebugInfo) return; // Не отрисовывать при включенном отладочном экране F3
-
-        ScaledResolution sr = new ScaledResolution(mc);
-
-        // 1. Отрисовка стильной Ватермарки (Watermark)
-        drawWatermark();
-
-        // 2. Отрисовка списка активных модулей (ArrayList)
-        drawArrayList(sr);
-
-        // 3. Отрисовка информационной панели (FPS, Координаты)
-        drawInfoPanel(sr);
+    public DeluxeHud() {
+        super("DeluxeHud", "Красивый настраиваемый интерфейс в стиле Deluxe", Category.RENDER);
+        deluxeManager = new DeluxeManager();
+        deluxeManager.init();
     }
 
     /**
-     * Отрисовка логотипа и информации о клиенте в левом верхнем углу
+     * Вызывайте этот метод в вашем ивенте отрисовки 2D (Render2DEvent / RenderGameOverlayEvent)
      */
-    private void drawWatermark() {
-        String watermarkText = "DeluxeHud §7| §f" + PlusClient.NAME + " §7[§f" + PlusClient.VERSION + "§7] §7| §f" + mc.DebugFPS + " FPS";
-        
-        int x = 4;
-        int y = 4;
-        int padding = 6;
+    public void drawHud(int mouseX, int mouseY) {
+        if (!this.isToggled() || mc.gameSettings.showDebugInfo) return;
 
-        int textWidth = mc.fontRendererObj.getStringWidth(watermarkText);
-        
-        // Полупрозрачная подложка
-        RenderUtils.drawRect(x - 2, y - 2, x + textWidth + padding + 2, y + 12 + 2, new Color(20, 20, 20, 180).getRGB());
-        // Неоновая верхняя линия ватермарки
-        RenderUtils.drawRect(x - 2, y - 3, x + textWidth + padding + 2, y - 2, new Color(138, 43, 226).getRGB());
-
-        mc.fontRendererObj.drawStringWithShadow(watermarkText, x + 3, y + 2, Color.WHITE.getRGB());
-    }
-
-    /**
-     * Отрисовка списка активных модулей клиента в правом верхнем углу
-     */
-    private void drawArrayList(ScaledResolution sr) {
-        int yOffset = 4;
-
-        if (PlusClient.instance != null && PlusClient.instance.moduleManager != null) {
-            PlusClient.instance.moduleManager.getModules().stream()
-                    .filter(Module::isToggled)
-                    .sorted(Comparator.comparingDouble(m -> -mc.fontRendererObj.getStringWidth(m.getName())))
-                    .forEach(module -> {
-                        String name = module.getName();
-                        int width = mc.fontRendererObj.getStringWidth(name);
-                        int x = sr.getScaledWidth() - width - 6;
-
-                        RenderUtils.drawRect(x - 4, yOffset, sr.getScaledWidth() - 2, yOffset + 12, new Color(15, 15, 15, 150).getRGB());
-                        RenderUtils.drawRect(sr.getScaledWidth() - 3, yOffset, sr.getScaledWidth() - 2, yOffset + 12, new Color(138, 43, 226).getRGB());
-
-                        mc.fontRendererObj.drawStringWithShadow(name, x - 2, yOffset + 2, Color.WHITE.getRGB());
-                        
-                        // Если элементы накладываются друг на друга, раскомментируйте строку ниже:
-                        // yOffset += 12; 
-                    });
+        // Отрисовываем все элементы через менеджер
+        if (deluxeManager != null) {
+            deluxeManager.drawAll(mouseX, mouseY);
         }
     }
 
-    /**
-     * Отрисовка мини-панели с информацией игрока (в левом нижнем углу)
-     */
-    private void drawInfoPanel(ScaledResolution sr) {
-        int x = 4;
-        int y = sr.getScaledHeight() - 35;
+    // Методы для проброса кликов мыши (чтобы элементы можно было перетаскивать)
+    public static void handleMouseClick(int mouseX, int mouseY, int mouseButton) {
+        if (deluxeManager != null) {
+            deluxeManager.mouseClicked(mouseX, mouseY, mouseButton);
+        }
+    }
 
-        String coords = String.format("XYZ: §f%d, %d, %d", (int) mc.thePlayer.posX, (int) mc.thePlayer.posY, (int) mc.thePlayer.posZ);
-        String fps = String.format("FPS: §f%d", mc.DebugFPS);
-
-        mc.fontRendererObj.drawStringWithShadow(coords, x, y, new Color(200, 200, 200).getRGB());
-        mc.fontRendererObj.drawStringWithShadow(fps, x, y + 10, new Color(200, 200, 200).getRGB());
+    public static void handleMouseRelease(int mouseX, int mouseY, int state) {
+        if (deluxeManager != null) {
+            deluxeManager.mouseReleased(mouseX, mouseY, state);
+        }
     }
 }
