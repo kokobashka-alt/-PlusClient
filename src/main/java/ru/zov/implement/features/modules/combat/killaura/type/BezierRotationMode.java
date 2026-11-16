@@ -10,7 +10,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import ru.zov.implement.features.modules.combat.killaura.Mc;
+import ru.zov.implement.features.modules.combat.killaura.type.Mc;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.neuro.BezierRecorder;
 import ru.zov.implement.features.modules.combat.killaura.neuro.HumanStep;
