@@ -6,6 +6,8 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
 import org.joml.Matrix3x2fStack;
 import ru.zov.common.util.color.ColorUtil;
 import ru.zov.common.util.entity.PlayerIntersectionUtil;
@@ -38,9 +40,23 @@ public class OldCelestialTarget extends OldCelestialDraggable {
          return;
       }
 
-      LivingEntity aura = Aura.getInstance().getTarget();
-      if (aura != null && aura.isAlive()) {
-         this.target = aura;
+      LivingEntity detectedTarget = null;
+
+      // 1. Проверяем цель из киллауры
+      Aura aura = Aura.getInstance();
+      if (aura != null && aura.isState() && aura.getTarget() != null && aura.getTarget().isAlive()) {
+         detectedTarget = aura.getTarget();
+      } 
+      // 2. Если киллаура не активна или нет цели, проверяем игрока под прицелом (Crosshair)
+      else if (mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.ENTITY) {
+         EntityHitResult entityHit = (EntityHitResult) mc.crosshairTarget;
+         if (entityHit.getEntity() instanceof LivingEntity living && living.isAlive()) {
+            detectedTarget = living;
+         }
+      }
+
+      if (detectedTarget != null) {
+         this.target = detectedTarget;
          this.lastSeen = seconds();
       }
    }
