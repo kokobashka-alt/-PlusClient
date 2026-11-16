@@ -1,7 +1,7 @@
 package ru.zov.implement.features.draggables.oldcelestial;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderPipelines;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.util.Identifier;
 import org.joml.Matrix3x2fStack;
 import ru.zov.implement.features.modules.render.OldCelestialHud;
