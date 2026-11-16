@@ -88,7 +88,6 @@ import ru.zov.implement.features.modules.render.OldCelestialHud;
 import ru.zov.implement.features.modules.combat.CrystalAura2;
 import ru.zov.implement.features.modules.render.ShaderHands;
 import ru.zov.implement.features.modules.render.FakePlayer;
-import ru.zov.implement.features.modules.render.DeluxeHud;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -180,8 +179,7 @@ public class ModuleRepository {
             new OldCelestialHud(),
             new CrystalAura2(),
             new ShaderHands(),
-            new FakePlayer(),
-            new DeluxeHud()
+            new FakePlayer()
         );
     }
 
