@@ -51,7 +51,7 @@ public class OldCelestialWatermark extends OldCelestialDraggable {
          ZOV_LOGO,
          (int) (x + 5.0F), (int) (y + 3.0F),
          22, 22,
-         0.0F, 0.0F,
+         0, 0,
          22, 22,
          22, 22
       );

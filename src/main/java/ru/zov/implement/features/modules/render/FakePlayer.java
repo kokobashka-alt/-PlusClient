@@ -65,8 +65,8 @@ public class FakePlayer extends Module {
         int entityId = findFreeEntityId(world);
         if (entityId == -1) return;
 
-        GameProfile profile = copySkin.getValue()
-                ? new GameProfile(UUID.randomUUID(), player.getGameProfile().getName(), player.getGameProfile().properties())
+        GameProfile profile = copySkin.isValue()
+                ? new GameProfile(UUID.randomUUID(), player.getGameProfile().name(), player.getGameProfile().properties())
                 : new GameProfile(UUID.randomUUID(), "FakePlayer");
 
         OtherClientPlayerEntity dummy = new OtherClientPlayerEntity(world, profile);
@@ -75,7 +75,7 @@ public class FakePlayer extends Module {
         dummy.setHeadYaw(player.getHeadYaw());
         dummy.setBodyYaw(player.getBodyYaw());
 
-        if (copyEquipment.getValue()) {
+        if (copyEquipment.isValue()) {
             dummy.getInventory().clone(player.getInventory());
         }
 
