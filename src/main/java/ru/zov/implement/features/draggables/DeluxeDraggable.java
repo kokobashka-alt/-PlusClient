@@ -1,6 +1,7 @@
 package ru.zov.implement.features.draggables;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.DrawContext;
 
 public abstract class DeluxeDraggable {
     protected final Minecraft mc = Minecraft.getMinecraft();
@@ -19,7 +20,8 @@ public abstract class DeluxeDraggable {
         this.height = height;
     }
 
-    public abstract void draw(int mouseX, int mouseY);
+    // Передаем DrawContext для работы с вашим Render2DUtil
+    public abstract void draw(DrawContext context, int mouseX, int mouseY);
 
     protected void updateDrag(int mouseX, int mouseY) {
         if (dragging) {
