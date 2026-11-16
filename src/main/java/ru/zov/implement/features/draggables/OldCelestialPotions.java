@@ -41,10 +41,8 @@ public class OldCelestialPotions extends OldCelestialDraggable {
             int seconds = effect.getDuration() / 20;
             time = (seconds / 60) + ":" + String.format("%02d", seconds % 60);
          }
-
          rows.add(new Row(effect.getEffectType(), name, time));
       }
-
       return rows;
    }
 
