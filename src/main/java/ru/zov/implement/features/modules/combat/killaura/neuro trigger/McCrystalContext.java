@@ -347,7 +347,7 @@ public final class McCrystalContext implements CrystalAuraCore.Context {
     public double selfDamage(CrystalAuraCore.Point crystalCenter) {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) return 0.0;
-        int armor = (int) player.getAttributeValue(EntityAttributes.GENERIC_ARMOR);
+        int armor = (int) player.getAttributeValue(EntityAttributes.ARMOR);
         return estimateCrystalDamage(crystalCenter, player.getBoundingBox(), armor);
     }
 
@@ -358,7 +358,7 @@ public final class McCrystalContext implements CrystalAuraCore.Context {
 
         for (PlayerEntity p : client.world.getPlayers()) {
             if (p != null && p.getId() == targetId) {
-                int armor = (int) p.getAttributeValue(EntityAttributes.GENERIC_ARMOR);
+                int armor = (int) p.getAttributeValue(EntityAttributes.ARMOR);
                 return estimateCrystalDamage(crystalCenter, p.getBoundingBox(), armor);
             }
         }
