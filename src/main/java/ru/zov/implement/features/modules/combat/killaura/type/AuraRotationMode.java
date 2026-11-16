@@ -16,6 +16,8 @@ public enum AuraRotationMode implements DisplayNamed {
     NEURO(Translation.clearText("Neuro")),
     SHARD(Translation.clearText("Shard")),
     SHARD_2(Translation.clearText("Shard 2 (Nano)")),
+    SPOOKY_NOISE(Translation.clearText("SpookyTime Noise")),
+    POLAR_SNAP(Translation.clearText("Polar Snap")),
     FOV(Translation.clearText("Fov"));
 
     public final Translation displayName;
