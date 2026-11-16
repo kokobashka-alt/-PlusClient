@@ -2,6 +2,7 @@ package ru.zov.implement.features.modules.combat;
 
 import java.util.Comparator;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -20,6 +21,7 @@ import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.keyboard.MouseRotationEvent;
 import ru.zov.implement.events.player.TickEvent;
+import ru.zov.implement.features.modules.combat.command.BezierChatCommand;
 import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.type.AimAssistRotationMode;
 
@@ -60,9 +62,12 @@ public class AimAssist extends Module {
     public final ValueSetting fov = new ValueSetting("FOV", "Ассист работает только внутри этого угла, °")
             .setValue(45.0f).range(5.0f, 180.0f);
 
+    private boolean chatCommandRegistered;
+
     public AimAssist() {
         super("AimAssist", "CombatAim", ModuleCategory.COMBAT);
         this.setup(new Setting[]{distance, onlyWeapon, strength, maxYawSpeed, fov});
+        this.registerChatCommand();
     }
 
     public static AimAssist getInstance() {
@@ -85,6 +90,14 @@ public class AimAssist extends Module {
 
     public boolean isTraining() {
         return this.rotation.isTraining();
+    }
+
+    private void registerChatCommand() {
+        if (this.chatCommandRegistered) {
+            return;
+        }
+        MinecraftClient.getInstance().getCommandManager().register(new BezierChatCommand(this));
+        this.chatCommandRegistered = true;
     }
 
     @Override
