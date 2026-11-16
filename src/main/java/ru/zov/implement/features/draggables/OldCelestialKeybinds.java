@@ -25,7 +25,6 @@ public class OldCelestialKeybinds extends OldCelestialDraggable {
             rows.add(new String[]{module.getVisibleName(), "[" + StringUtil.getBindName(module.getKey()) + "]"});
          }
       }
-
       return rows;
    }
 
