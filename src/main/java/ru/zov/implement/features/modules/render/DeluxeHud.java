@@ -10,7 +10,7 @@ public class DeluxeHud extends Module {
     public static DeluxeManager deluxeManager;
 
     public DeluxeHud() {
-        super("DeluxeHud", "Интерфейс в стиле Deluxe", Category.RENDER);
+        super("DeluxeHud", "DeluxeHud", Category.RENDER);
         deluxeManager = new DeluxeManager();
         deluxeManager.init();
     }
