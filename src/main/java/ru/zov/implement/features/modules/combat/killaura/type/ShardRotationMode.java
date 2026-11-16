@@ -1,6 +1,7 @@
 package ru.zov.implement.features.modules.combat.killaura.type;
 
 import java.util.Random;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.MathHelper;
@@ -57,7 +58,7 @@ public final class ShardRotationMode extends RotationMode {
 
     @Override
     public Rotation process(Rotation current, Rotation target, Vec3d vec3d, Entity entity) {
-        ClientPlayerEntity player = net.minecraft.client.Minecraft.getInstance().player;
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
         double gcd = MathUtil.computeGcd();
         if (player == null || current == null || target == null || !(gcd > 1.0E-4)) {
             return current;
