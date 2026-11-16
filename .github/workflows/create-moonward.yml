@@ -1,30 +1,35 @@
 
-name: Create Moonward Folder
+name: Create Neuro Trigger and Command
 
 on:
   workflow_dispatch:
-  push:
 
 permissions:
   contents: write
 
 jobs:
-  create-folder:
+  create-folders:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Create moonward folder
+      - name: Create folders
         run: |
-          mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/trigger
-          touch src/main/java/ru/zov/implement/features/modules/combat/killaura/trigger/.gitkeep
+          mkdir -p "src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro trigger"
+          mkdir -p "src/main/java/ru/zov/implement/features/modules/combat/command"
 
-      - name: Commit folder
+          touch "src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro trigger/.gitkeep"
+          touch "src/main/java/ru/zov/implement/features/modules/combat/command/.gitkeep"
+
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/main/java/ru/zov/implemen/features/modules/combat/killaura/trigger/.gitkeep
-          git commit -m "Create moonward package" || exit 0
+
+          git add "src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro trigger" \
+                  "src/main/java/ru/zov/implement/features/modules/combat/command"
+
+          git commit -m "Create neuro trigger and command folders" || exit 0
           git push
           
