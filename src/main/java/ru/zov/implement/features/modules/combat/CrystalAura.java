@@ -12,8 +12,8 @@ import ru.zov.api.feature.module.setting.implement.MultiSelectSetting;
 import ru.zov.api.feature.module.setting.implement.ValueSetting;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.implement.features.modules.combat.killaura.crystal.CrystalAuraCore;
-import ru.zov.implement.features.modules.combat.killaura.crystal.McCrystalContext;
+import ru.zov.implement.features.modules.combat.killaura.neuro.trigger.CrystalAuraCore;
+import ru.zov.implement.features.modules.combat.killaura.neuro.trigger.McCrystalContext;
 
 /**
  * Crystal Aura module. Two profiles (Legit / Rage) with independent presets.
@@ -79,6 +79,10 @@ public class CrystalAura extends Module {
             .setValue(false);
     public final BooleanSetting idPredict = new BooleanSetting("ID Predict", "Предсказывать ID кристалла")
             .setValue(false);
+    public final ValueSetting idPredictMin = new ValueSetting("ID Predict min", "Нижняя граница ID-оффсета")
+            .setValue(1.0f).range(1.0f, 4.0f);
+    public final ValueSetting idPredictMax = new ValueSetting("ID Predict max", "Верхняя граница ID-оффсета")
+            .setValue(2.0f).range(1.0f, 8.0f);
     public final BooleanSetting swing = new BooleanSetting("Размах руки", "Свинг после действия")
             .setValue(true);
     public final BooleanSetting restoreSlot = new BooleanSetting("Возвращать слот", "Возвращать слот после установки")
@@ -91,6 +95,10 @@ public class CrystalAura extends Module {
             .setValue(4.0f).range(0.0f, 20.0f);
     public final BooleanSetting antiSuicide = new BooleanSetting("Anti Suicide", "Не ставить смертельные кристаллы")
             .setValue(true);
+    public final ValueSetting antiSuicideHealth = new ValueSetting("Anti Suicide HP", "Запас здоровья, ниже которого не ставить")
+            .setValue(4.0f).range(0.0f, 20.0f);
+    public final ValueSetting minDamageRatio = new ValueSetting("Мин. отношение урона", "Урон по врагу / по себе")
+            .setValue(0.3f).range(0.0f, 5.0f);
 
     // Per-tick caps
     public final ValueSetting maxBreaksPerTick = new ValueSetting("Взрывов за тик", "Максимум")
@@ -118,8 +126,9 @@ public class CrystalAura extends Module {
                 profile,
                 targetRange, placeRange, breakRange, fov, minSelfDistance, crystalTargetDistance,
                 placeDelay, breakDelay, switchDelay, basePlaceDelay, targetLockMs,
-                autoPlace, autoBreak, basePlace, setDead, idPredict, swing, restoreSlot,
-                minEnemyDamage, maxSelfDamage, antiSuicide,
+                autoPlace, autoBreak, basePlace, setDead, idPredict, idPredictMin, idPredictMax,
+                swing, restoreSlot,
+                minEnemyDamage, maxSelfDamage, antiSuicide, antiSuicideHealth, minDamageRatio,
                 maxBreaksPerTick, maxPlacesPerTick,
                 legitPausePercent,
         });
@@ -174,6 +183,8 @@ public class CrystalAura extends Module {
 
         CrystalAuraCore.Config cfg = this.core.config();
         cfg.rage = rage;
+
+        // Ranges
         cfg.targetRange = this.targetRange.getValue();
         cfg.placeRange = this.placeRange.getValue();
         cfg.breakRange = this.breakRange.getValue();
@@ -181,28 +192,39 @@ public class CrystalAura extends Module {
         cfg.minSelfDistance = this.minSelfDistance.getValue();
         cfg.maxCrystalTargetDistance = this.crystalTargetDistance.getValue();
 
+        // Timings
         cfg.placeDelayMs = (long) this.placeDelay.getValue();
         cfg.breakDelayMs = (long) this.breakDelay.getValue();
         cfg.switchDelayMs = (long) this.switchDelay.getValue();
         cfg.basePlaceDelayMs = (long) this.basePlaceDelay.getValue();
         cfg.targetLockMs = (long) this.targetLockMs.getValue();
 
+        // Feature toggles
         cfg.autoPlace = this.autoPlace.isValue();
         cfg.autoBreak = this.autoBreak.isValue();
         cfg.basePlace = this.basePlace.isValue();
         cfg.setDead = this.setDead.isValue();
         cfg.idPredict = this.idPredict.isValue();
+        cfg.idPredictMin = Math.round(this.idPredictMin.getValue());
+        cfg.idPredictMax = Math.round(this.idPredictMax.getValue());
         cfg.swing = this.swing.isValue();
         cfg.restoreSlot = this.restoreSlot.isValue();
 
+        // Damage gates
         cfg.minEnemyDamage = this.minEnemyDamage.getValue();
         cfg.maxSelfDamage = this.maxSelfDamage.getValue();
         cfg.antiSuicide = this.antiSuicide.isValue();
+        cfg.antiSuicideHealth = this.antiSuicideHealth.getValue();
+        cfg.minDamageRatio = this.minDamageRatio.getValue();
 
+        // Per-tick caps
         cfg.maxCrystalsBrokenPerTick = Math.round(this.maxBreaksPerTick.getValue());
         cfg.maxCrystalsPlacedPerTick = Math.round(this.maxPlacesPerTick.getValue());
+
+        // Legit-only
         cfg.legitPausePercent = Math.round(this.legitPausePercent.getValue());
 
+        // Context
         this.context.setRestoreSlot(this.restoreSlot.isValue());
         this.context.setRage(rage);
 
@@ -230,10 +252,15 @@ public class CrystalAura extends Module {
             this.maxPlacesPerTick.setValue(2.0f);
             this.minEnemyDamage.setValue(2.0f);
             this.maxSelfDamage.setValue(5.0f);
+            this.antiSuicide.setValue(true);
+            this.antiSuicideHealth.setValue(6.0f);
+            this.minDamageRatio.setValue(0.2f);
             this.legitPausePercent.setValue(0.0f);
             this.basePlace.setValue(true);
             this.setDead.setValue(true);
             this.idPredict.setValue(true);
+            this.idPredictMin.setValue(1.0f);
+            this.idPredictMax.setValue(3.0f);
             this.restoreSlot.setValue(false);
         } else {
             this.targetRange.setValue(6.0f);
@@ -251,10 +278,15 @@ public class CrystalAura extends Module {
             this.maxPlacesPerTick.setValue(1.0f);
             this.minEnemyDamage.setValue(3.0f);
             this.maxSelfDamage.setValue(4.0f);
+            this.antiSuicide.setValue(true);
+            this.antiSuicideHealth.setValue(4.0f);
+            this.minDamageRatio.setValue(0.3f);
             this.legitPausePercent.setValue(5.0f);
             this.basePlace.setValue(false);
             this.setDead.setValue(false);
             this.idPredict.setValue(false);
+            this.idPredictMin.setValue(1.0f);
+            this.idPredictMax.setValue(2.0f);
             this.restoreSlot.setValue(false);
         }
     }
