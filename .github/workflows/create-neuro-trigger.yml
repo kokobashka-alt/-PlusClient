@@ -18,10 +18,10 @@ jobs:
 
       - name: Create folders
         run: |
-          mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro\ trigger
+          mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro
           mkdir -p src/main/java/ru/zov/implement/features/modules/combat/command
 
-          touch "src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro trigger/.gitkeep"
+          touch "src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro/.gitkeep"
           touch src/main/java/ru/zov/implement/features/modules/combat/command/.gitkeep
 
       - name: Commit folders
