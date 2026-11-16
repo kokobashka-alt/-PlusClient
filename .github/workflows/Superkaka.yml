@@ -1,0 +1,47 @@
+
+name: Remove Obsolete Combat Files
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remove-files:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Remove obsolete files
+        run: |
+          git rm \
+            src/main/java/ru/zov/implement/modules/combat/command/.gitkeep \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/.gitkeep \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/BezierFeatures.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/BezierGruModel.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/BezierRecorder.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/Dataset.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/FeatureVector.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/Gru.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/HumanStep.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/Quantizer.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/RawSample.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/Trainer.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/neuro/TrainingJob.java \
+            src/main/java/ru/zov/implement/modules/ combat/killaura/trigger/.gitkeep \
+            src/main/java/ru/zov/implement/modules/combat/killaura/trigger/McTriggerContext.java \
+            src/main/java/ru/zov/implement/modules/combat/killaura/trigger/TriggerBot.java
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "Remove obsolete duplicate combat files"
+
+      - name: Push changes
+        run: git push
+        
