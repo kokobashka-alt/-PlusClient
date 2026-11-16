@@ -11,36 +11,36 @@ import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
 import ru.zov.implement.features.modules.combat.killaura.util.MathUtil;
 
 /**
- * Polar Snap: discrete flick towards the target along the polar error vector, followed by a loose
- * proportional lock. Each tick the view moves at most snapCap degrees (re-rolled per hit) in one
- * angular step. The arrival step deliberately undershoots or slightly overshoots so the crosshair
- * never lands exactly on the target — real mouse input never does.
+ * Polar-aware snap rotation.
  *
- * Anti-flag:
- *  - Step is quantized to whole mouse counts with an honest residual carry (no 1% bias).
- *  - Jitter is uniform, not Gaussian (mouse noise is not Gaussian).
- *  - Step magnitude varies +-4% per tick so the angular velocity profile is not a constant ramp.
- *  - Occasional skipped ticks mimic human pause between flicks.
- *  - A tiny perpendicular wobble keeps the path from being a perfectly straight line.
- *  - Lock gain is re-jittered every tick.
+ * Design notes vs. Polar:
+ *  - Every tunable is re-rolled per tick, not per hit / per target. Polar's cloud ML
+ *    looks at tick-to-tick sequences, so class-level constants that persist across
+ *    ticks are the main source of "static/consistent patterns" flags.
+ *  - Snap step decays non-linearly with remaining error and is multiplied by a
+ *    per-tick uniform noise, so the angular velocity profile is never a clean ramp.
+ *  - Lock phase intentionally maintains a non-zero floor error (MIN_LOCK_ERR). A
+ *    crosshair that converges to within one GCD unit is trivially detected.
+ *  - Pause probability itself is jittered per tick (0.01 .. 0.09), so the
+ *    distribution of skipped ticks has no fixed mean.
+ *  - Residual carry uses a bias of 1e-4 * step — just enough to survive the
+ *    framework's truncation, too small to accumulate into a detectable drift.
  */
 public final class PolarSnapRotationMode extends RotationMode {
-    private static final float PITCH_LIMIT  = 89.0F;
-    private static final float LOCK_RADIUS  = 1.4F;
-    private static final float LOCK_GAIN    = 0.35F;
-    private static final float LOCK_JITTER  = 0.035F;
-    private static final float SNAP_MIN     = 20.0F;
-    private static final float SNAP_MAX     = 42.0F;
-    private static final float STEP_VARIANCE = 0.04F;  // +-4% per-tick step noise
-    private static final float PAUSE_CHANCE  = 0.05F;  // ~1 in 20 ticks skipped
-    private static final float WOBBLE        = 0.015F;
-    private static final float QUANT_BIAS    = 1.0E-4F; // tiny, survives framework truncation
+    private static final float PITCH_LIMIT   = 89.0F;
+    private static final float LOCK_RADIUS   = 1.3F;   // tighter than before; snap dominates
+    private static final float MIN_LOCK_ERR  = 0.025F; // never let error collapse to 0
+    private static final float STEP_NOISE    = 0.07F;  // +-7 % on the per-tick step
+    private static final float WOBBLE        = 0.012F; // perpendicular, degrees
+    private static final float QUANT_BIAS    = 1.0E-4F;
 
     private final Random rng = new Random();
     private final float[] residual = new float[2];
     private Entity tracked;
     private int lastHitCounter = Integer.MIN_VALUE;
-    private float snapCap = SNAP_MAX;
+
+    // Rolling state used only to decorrelate from the previous tick — not as a fixed parameter.
+    private float lastStepMag;
 
     public PolarSnapRotationMode() {
         super("Polar Snap");
@@ -49,9 +49,9 @@ public final class PolarSnapRotationMode extends RotationMode {
     public void reset() {
         this.tracked = null;
         this.lastHitCounter = Integer.MIN_VALUE;
-        this.snapCap = rollSnap();
         this.residual[0] = 0.0F;
         this.residual[1] = 0.0F;
+        this.lastStepMag = 0.0F;
     }
 
     @Override
@@ -64,9 +64,9 @@ public final class PolarSnapRotationMode extends RotationMode {
 
         if (this.tracked != entity) {
             this.tracked = entity;
-            this.snapCap = rollSnap();
             this.residual[0] = 0.0F;
             this.residual[1] = 0.0F;
+            this.lastStepMag = 0.0F;
         }
         this.checkHit();
 
@@ -79,33 +79,57 @@ public final class PolarSnapRotationMode extends RotationMode {
             return current;
         }
 
-        // Human pause: mouse occasionally doesn't emit movement this tick.
-        if (dist > LOCK_RADIUS && this.rng.nextFloat() < PAUSE_CHANCE) {
+        // ---- Per-tick randomization block ----
+        float snapCap    = 18.0F + this.rng.nextFloat() * 30.0F;       // 18 .. 48
+        float pauseChance = 0.01F + this.rng.nextFloat() * 0.08F;      // 1 % .. 9 %, re-rolled
+        float lockGain   = 0.22F + this.rng.nextFloat() * 0.30F;       // 0.22 .. 0.52
+        float lockJitter = 0.018F + this.rng.nextFloat() * 0.030F;     // 0.018 .. 0.048
+
+        // Human pause — the *probability itself* changes every tick.
+        if (dist > LOCK_RADIUS && this.rng.nextFloat() < pauseChance) {
             return current;
         }
 
         float dy;
         float dp;
         if (dist > LOCK_RADIUS) {
-            // Discrete snap: fixed angular step along the error vector.
+            // --- Snap: non-linear decay + per-tick magnitude noise ---
             float step;
-            if (dist <= this.snapCap) {
-                // Arrival — undershoot or slight overshoot, never a perfect landing.
-                step = dist * (0.94F + this.rng.nextFloat() * 0.08F);
+            if (dist <= snapCap) {
+                // Arrival: 0.90 .. 1.08 of remaining error. Never a clean landing.
+                step = dist * (0.90F + this.rng.nextFloat() * 0.18F);
             } else {
-                // Mid-snap — full cap with +-STEP_VARIANCE per-tick variation, never overshoot target.
-                float cap = this.snapCap * (1.0F - STEP_VARIANCE + this.rng.nextFloat() * 2.0F * STEP_VARIANCE);
-                step = Math.min(cap, dist);
+                // Mid-snap: base cap pulled toward the previous step to avoid a fixed ceiling,
+                // then multiplied by +-STEP_NOISE.
+                float base = snapCap * 0.65F + this.lastStepMag * 0.35F;
+                float noisy = base * (1.0F - STEP_NOISE + this.rng.nextFloat() * 2.0F * STEP_NOISE);
+                step = Math.min(noisy, dist);
             }
+            step = Math.max(step, 0.5F); // don't produce sub-visible micro-steps mid-snap
+            this.lastStepMag = step;
+
             float inv = step / dist;
             float wobble = (this.rng.nextFloat() * 2.0F - 1.0F) * WOBBLE;
-            dy = errYaw * inv + wobble;
+            dy = errYaw   * inv + wobble;
             dp = errPitch * inv - wobble;
         } else {
-            // Lock: proportional with uniform jitter (not Gaussian).
-            float gain = LOCK_GAIN * (0.85F + this.rng.nextFloat() * 0.3F);
-            dy = errYaw   * gain + (this.rng.nextFloat() * 2.0F - 1.0F) * LOCK_JITTER;
-            dp = errPitch * gain + (this.rng.nextFloat() * 2.0F - 1.0F) * LOCK_JITTER * 0.6F;
+            // --- Lock: proportional, but with a non-zero error floor ---
+            float signY = Math.signum(errYaw);
+            float signP = Math.signum(errPitch);
+            float desiredY = errYaw * lockGain;
+            float desiredP = errPitch * lockGain;
+
+            // If the proportional step would take us inside MIN_LOCK_ERR, clamp it
+            // so the residual error stays non-zero.
+            if (Math.abs(errYaw - desiredY) < MIN_LOCK_ERR) {
+                desiredY = errYaw - signY * MIN_LOCK_ERR;
+            }
+            if (Math.abs(errPitch - desiredP) < MIN_LOCK_ERR) {
+                desiredP = errPitch - signP * MIN_LOCK_ERR;
+            }
+
+            dy = desiredY + (this.rng.nextFloat() * 2.0F - 1.0F) * lockJitter;
+            dp = desiredP + (this.rng.nextFloat() * 2.0F - 1.0F) * lockJitter * 0.6F;
         }
 
         float qy = this.quantize(0, dy, gcd);
@@ -126,24 +150,11 @@ public final class PolarSnapRotationMode extends RotationMode {
             return;
         }
         int counter = aura.hitCounter();
-        if (this.lastHitCounter != Integer.MIN_VALUE && counter != this.lastHitCounter) {
-            this.snapCap = rollSnap();
-        }
+        // Hit counter no longer re-rolls snapCap — per-tick randomization already covers it.
+        // We only track it so a future Polar-specific tweak (e.g. post-hit flinch) has a hook.
         this.lastHitCounter = counter;
     }
 
-    private float rollSnap() {
-        // Sum of two uniforms: mild triangular bias toward the middle, avoids extreme values.
-        float a = this.rng.nextFloat();
-        float b = this.rng.nextFloat();
-        return SNAP_MIN + (SNAP_MAX - SNAP_MIN) * (a + b) * 0.5F;
-    }
-
-    /**
-     * Rounds the desired step to whole mouse counts and carries the honest remainder.
-     * The bias is tiny (QUANT_BIAS * step, i.e. 0.01% of a step) — just enough to survive the
-     * framework's integer truncation, small enough not to accumulate into a detectable drift.
-     */
     private float quantize(int axis, float desired, double step) {
         double pending = desired + this.residual[axis];
         long counts = Math.round(pending / step);
