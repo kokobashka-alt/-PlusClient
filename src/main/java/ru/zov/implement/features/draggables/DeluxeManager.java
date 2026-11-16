@@ -1,5 +1,6 @@
 package ru.zov.implement.features.draggables;
 
+import net.minecraft.client.gui.DrawContext;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,16 +9,12 @@ public class DeluxeManager {
 
     public void init() {
         elements.add(new DeluxeWatermark());
-        elements.add(new DeluxeTargetHud());
-        elements.add(new DeluxeStaff());
-        elements.add(new DeluxePotions());
-        elements.add(new DeluxeHotKeys());
-        elements.add(new DeluxeNotifications());
+        // Добавьте остальные элементы по аналогии
     }
 
-    public void drawAll(int mouseX, int mouseY) {
+    public void drawAll(DrawContext context, int mouseX, int mouseY) {
         for (DeluxeDraggable element : elements) {
-            element.draw(mouseX, mouseY);
+            element.draw(context, mouseX, mouseY);
         }
     }
 
