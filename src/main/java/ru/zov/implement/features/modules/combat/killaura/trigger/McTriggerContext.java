@@ -7,7 +7,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
-import ru.zov.implement.features.modules.combat.killaura.Mc;
+import ru.zov.implement.features.modules.combat.killaura.type.Mc;
 
 /**
  * Minecraft glue for {@link TriggerBot}. Everything that depends on the client's mappings is in this file; the core
