@@ -1,6 +1,6 @@
 package ru.zov.implement.features.modules.combat;
 
-import java.util.Comparator;
+import java.util.concurrent.ThreadLocalRandom;
 
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.ArmorStandEntity;
@@ -20,49 +20,51 @@ import ru.zov.api.repository.FriendUtils;
 import ru.zov.common.util.other.Instance;
 import ru.zov.implement.events.keyboard.MouseRotationEvent;
 import ru.zov.implement.events.player.TickEvent;
-import ru.zov.implement.features.modules.combat.killaura.math.Rotation;
-import ru.zov.implement.features.modules.combat.killaura.type.AimAssistRotationMode;
+import ru.zov.implement.features.modules.combat.aimassist.HumanAimModel;
 
 /**
- * AimAssist as a normal client module.
+ * AimAssist на формулах (см. {@link HumanAimModel}): добавка к собственному движению мыши игрока.
  *
- * <p>The actual motion profile lives in {@link AimAssistRotationMode}: it wraps the Bezier rotation, adds a reaction
- * delay, acceleration/deceleration, a stopping clamp, tremor and an FOV gate. This module only:
+ * <ul>
+ *   <li>нет движения мыши — нет добавки; движение от цели не трогается;</li>
+ *   <li>точка прицеливания не центр хитбокса, у каждой цели своя и она плавает;</li>
+ *   <li>внутри полосы попадания ассист молчит, прицел не залипает; есть реакция, паузы и отдых;</li>
+ *   <li>питч слабый, с потолком в градусах в секунду; всё идёт целыми шагами мыши;</li>
+ *   <li>никаких обучаемых/записанных кривых: только формулы.</li>
+ * </ul>
  *
- * <ol>
- *   <li>selects a target with the same rules as the previous AimAssist module;</li>
- *   <li>asks the rotation mode for the next step once per client tick;</li>
- *   <li>adds a scaled part of that step to the player's own mouse delta, and only when the mouse is already moving
- *       toward the target.</li>
- * </ol>
- *
- * <p>It never rotates the view while the mouse is still, and it never fights a mouse movement away from the target.
- * That is what keeps it an assist rather than a silent aim. Pitch is not applied here because the module's
- * {@code MouseRotationEvent} in the client exposes only the horizontal cursor delta; the rotation mode still tracks
- * pitch internally and can be used from a normal rotation pipeline.
+ * Выбор цели: ближайшая к направлению взгляда в пределах конуса, смена цели только если новая заметно ближе.
  */
 public class AimAssist extends Module {
-
-    private final AimAssistRotationMode rotation = new AimAssistRotationMode();
-
-    private LivingEntity target;
-    private float pendingYawStep;
-    private boolean appliedThisTick;
+    /** Градусов на единицу дельты мыши в changeLookDirection. */
+    private static final float DEGREES_PER_UNIT = 0.15F;
+    private static final float MAX_FRAME_SECONDS = 0.05F;
+    private static final double SWITCH_RATIO = 0.65;
+    private static final double CANDIDATE_CONE_SCALE = 1.4;
+    private static final double LOSE_CONE_SCALE = 1.6;
 
     public final ValueSetting distance = new ValueSetting("Дистанция", "Максимальная дистанция цели")
             .setValue(3.5f).range(1.0f, 8.0f);
     public final BooleanSetting onlyWeapon = new BooleanSetting("Только с оружием", "Работать только если в руке меч/топор")
             .setValue(false);
-    public final ValueSetting strength = new ValueSetting("Сила", "Сколько шага ротации добавлять к мыши, %")
-            .setValue(60.0f).range(0.0f, 100.0f);
-    public final ValueSetting maxYawSpeed = new ValueSetting("Скорость", "Максимальный шаг по yaw, °/тик")
-            .setValue(14.0f).range(1.0f, 30.0f);
-    public final ValueSetting fov = new ValueSetting("FOV", "Ассист работает только внутри этого угла, °")
-            .setValue(45.0f).range(5.0f, 180.0f);
+    public final ValueSetting strength = new ValueSetting("Сила", "Сколько собственного движения мыши добавлять, %")
+            .setValue(55.0f).range(0.0f, 100.0f);
+    public final ValueSetting vertical = new ValueSetting("Вертикаль", "Сила помощи по питчу, % (слабая и с потолком)")
+            .setValue(20.0f).range(0.0f, 100.0f);
+    public final ValueSetting fov = new ValueSetting("FOV", "Ассист работает только внутри этого конуса, °")
+            .setValue(12.0f).range(4.0f, 40.0f);
+
+    private final HumanAimModel model = new HumanAimModel(ThreadLocalRandom.current());
+    private final HumanAimModel.Settings modelSettings = new HumanAimModel.Settings();
+    private final HumanAimModel.Input input = new HumanAimModel.Input();
+    private final HumanAimModel.Output output = new HumanAimModel.Output();
+
+    private LivingEntity target;
+    private long lastFrameNanos;
 
     public AimAssist() {
         super("AimAssist", "CombatAim", ModuleCategory.COMBAT);
-        this.setup(new Setting[]{distance, onlyWeapon, strength, maxYawSpeed, fov});
+        this.setup(new Setting[]{distance, onlyWeapon, strength, vertical, fov});
     }
 
     public static AimAssist getInstance() {
@@ -73,121 +75,82 @@ public class AimAssist extends Module {
         return this.target;
     }
 
-    /** Same recording hotkey as the Bezier rotation; wire it to your keybind if you use the built-in trainer. */
-    public void toggleRecording() {
-        this.rotation.toggleRecording();
-    }
-
-    /** Same training hotkey as the Bezier rotation. */
-    public void toggleTraining() {
-        this.rotation.toggleTraining();
-    }
-
-    public boolean isTraining() {
-        return this.rotation.isTraining();
-    }
-
     @Override
     public void activate() {
-        this.reset();
+        this.setTarget(null);
+        this.lastFrameNanos = 0L;
     }
 
     @Override
     public void deactivate() {
-        this.reset();
+        this.setTarget(null);
     }
 
     @EventHandler
     public void onTick(TickEvent e) {
-        this.appliedThisTick = false;
-        this.pendingYawStep = 0.0F;
-
         if (mc.player == null || mc.world == null || mc.currentScreen != null || mc.isPaused() || !this.weaponAllowed()) {
-            this.clearTarget();
+            this.setTarget(null);
             return;
         }
 
         this.updateTarget();
-        if (this.target == null) {
-            this.rotation.resetMotion();
-            return;
-        }
-
-        AimAssistRotationMode.Config config = this.rotation.config();
-        config.maxYawSpeed = this.maxYawSpeed.getValue();
-        config.maxFovDegrees = this.fov.getValue();
-
-        Rotation current = new Rotation(mc.player.getYaw(), mc.player.getPitch());
-        Rotation aim = this.rotationTo(this.target);
-        Rotation next = this.rotation.process(current, aim, Vec3d.ZERO, this.target);
-
-        float step = MathHelper.wrapDegrees(next.getYaw() - current.getYaw());
-        this.pendingYawStep = step * (this.strength.getValue() / 100.0F);
     }
 
     @EventHandler
     public void onMouseRotation(MouseRotationEvent event) {
-        if (this.appliedThisTick || this.target == null || mc.player == null
-                || mc.currentScreen != null || mc.isPaused()) {
+        long now = System.nanoTime();
+        float dt = this.lastFrameNanos == 0L ? 1.0F / 60.0F : (now - this.lastFrameNanos) / 1.0E9F;
+        this.lastFrameNanos = now;
+
+        if (this.target == null || mc.player == null || mc.currentScreen != null || mc.isPaused()) {
             return;
         }
 
         float deltaX = event.getCursorDeltaX();
-        if (deltaX == 0.0F) {
-            return;
-        }
+        float deltaY = event.getCursorDeltaY();
+
+        this.modelSettings.strength = this.strength.getValue() / 100.0F;
+        this.modelSettings.vertical = this.vertical.getValue() / 100.0F;
+        this.modelSettings.coneDegrees = this.fov.getValue();
 
         Vec3d eye = mc.player.getEyePos();
-        Vec3d center = this.target.getBoundingBox().getCenter();
-        double dx = center.x - eye.x;
-        double dz = center.z - eye.z;
-        float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float yawError = MathHelper.wrapDegrees(targetYaw - mc.player.getYaw());
+        Vec3d feet = this.target.getEntityPos();
+        this.input.dt = Math.min(dt, MAX_FRAME_SECONDS);
+        this.input.yaw = mc.player.getYaw();
+        this.input.pitch = mc.player.getPitch();
+        this.input.eyeX = eye.x;
+        this.input.eyeY = eye.y;
+        this.input.eyeZ = eye.z;
+        this.input.feetX = feet.x;
+        this.input.feetY = feet.y;
+        this.input.feetZ = feet.z;
+        this.input.width = this.target.getWidth();
+        this.input.height = this.target.getHeight();
+        this.input.inputYaw = deltaX * DEGREES_PER_UNIT;
+        this.input.inputPitch = deltaY * DEGREES_PER_UNIT;
+        this.input.quantum = mouseCountDegrees();
 
-        // Assist only an aim that is already moving toward the target. Moving away stays the player's decision.
-        if (yawError == 0.0F || deltaX * yawError <= 0.0F) {
-            return;
+        this.model.step(this.input, this.modelSettings, this.output);
+
+        if (this.output.yaw != 0.0F) {
+            event.setCursorDeltaX(deltaX + this.output.yaw / DEGREES_PER_UNIT);
         }
-
-        float absDelta = Math.abs(deltaX);
-        float remaining = Math.abs(yawError) - absDelta;
-        if (remaining <= 0.0F) {
-            // The player's own movement already reaches or crosses the target; do not add anything.
-            this.appliedThisTick = true;
-            return;
+        if (this.output.pitch != 0.0F) {
+            event.setCursorDeltaY(deltaY + this.output.pitch / DEGREES_PER_UNIT);
         }
-
-        // Slow mouse movement gets more help; a fast flick gets little or none.
-        float scale = MathHelper.clamp(1.0F - absDelta / 50.0F, 0.0F, 1.0F);
-        float assist = this.pendingYawStep * scale;
-
-        // Do not let a step accumulated while the mouse was still turn a tiny movement into a snap. The assist is
-        // capped both by the remaining error and by a small multiple of the player's own movement.
-        float maxAssist = Math.min(remaining, Math.max(absDelta * 2.0F, 0.05F));
-        if (Math.abs(assist) > maxAssist) {
-            assist = Math.copySign(maxAssist, assist);
-        }
-        if (assist == 0.0F) {
-            this.appliedThisTick = true;
-            return;
-        }
-
-        float total = deltaX + assist;
-        event.setCursorDeltaX(applyGCD(total, deltaX));
-        this.appliedThisTick = true;
     }
 
-    private void reset() {
-        this.target = null;
-        this.pendingYawStep = 0.0F;
-        this.appliedThisTick = true;
-        this.rotation.resetMotion();
-    }
+    private void setTarget(LivingEntity entity) {
+        if (entity == this.target) {
+            return;
+        }
 
-    private void clearTarget() {
-        this.target = null;
-        this.pendingYawStep = 0.0F;
-        this.rotation.resetMotion();
+        this.target = entity;
+        if (entity == null) {
+            this.model.clearTarget();
+        } else {
+            this.model.acquire();
+        }
     }
 
     private boolean weaponAllowed() {
@@ -207,26 +170,51 @@ public class AimAssist extends Module {
     private void updateTarget() {
         double range = this.distance.getValue();
         double rangeSq = range * range;
+        double cone = this.fov.getValue();
 
-        if (this.target == null || mc.player.squaredDistanceTo(this.target) > rangeSq
-                || !this.isValidTarget(this.target)) {
-            this.target = this.findTarget(range);
+        if (this.target != null && (mc.player.squaredDistanceTo(this.target) > rangeSq || !this.isValidTarget(this.target)
+                || this.angleTo(this.target) > cone * LOSE_CONE_SCALE)) {
+            this.setTarget(null);
+        }
+
+        LivingEntity best = this.findBest(range, cone * CANDIDATE_CONE_SCALE);
+        if (best == null) {
+            return;
+        }
+
+        if (this.target == null) {
+            this.setTarget(best);
+        } else if (best != this.target && this.angleTo(best) < SWITCH_RATIO * this.angleTo(this.target)) {
+            this.setTarget(best);
         }
     }
 
-    private LivingEntity findTarget(double range) {
+    private LivingEntity findBest(double range, double maxAngle) {
         Box box = mc.player.getBoundingBox().expand(range);
         double rangeSq = range * range;
-        return mc.world.getEntitiesByClass(LivingEntity.class, box, this::isValidTarget)
-                .stream()
-                .filter(entity -> mc.player.squaredDistanceTo(entity) <= rangeSq)
-                .min(Comparator.comparingDouble(this::fovTo))
-                .orElse(null);
+        LivingEntity best = null;
+        double bestAngle = maxAngle;
+        for (LivingEntity entity : mc.world.getEntitiesByClass(LivingEntity.class, box, this::isValidTarget)) {
+            if (mc.player.squaredDistanceTo(entity) > rangeSq) {
+                continue;
+            }
+
+            double angle = this.angleTo(entity);
+            if (angle <= bestAngle) {
+                bestAngle = angle;
+                best = entity;
+            }
+        }
+
+        return best;
     }
 
-    private double fovTo(LivingEntity entity) {
+    /** Угол между направлением взгляда и нейтральной точкой верха туловища цели. */
+    private double angleTo(LivingEntity entity) {
+        Vec3d pos = entity.getEntityPos();
+        double[] point = HumanAimModel.neutralPoint(pos.x, pos.y, pos.z, entity.getHeight());
+        Vec3d dir = new Vec3d(point[0], point[1], point[2]).subtract(mc.player.getEyePos()).normalize();
         Vec3d look = mc.player.getRotationVec(1.0F);
-        Vec3d dir = entity.getEntityPos().subtract(mc.player.getEyePos()).normalize();
         return Math.toDegrees(Math.acos(MathHelper.clamp(look.dotProduct(dir), -1.0, 1.0)));
     }
 
@@ -246,25 +234,9 @@ public class AimAssist extends Module {
         return true;
     }
 
-    private Rotation rotationTo(LivingEntity entity) {
-        Vec3d eye = mc.player.getEyePos();
-        Vec3d center = entity.getBoundingBox().getCenter();
-        double dx = center.x - eye.x;
-        double dy = center.y - eye.y;
-        double dz = center.z - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) Math.toDegrees(-Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        return new Rotation(yaw, pitch);
-    }
-
-    private static float gcd() {
-        double sensitivity = mc.options.getMouseSensitivity().getValue();
-        double f = sensitivity * 0.6 + 0.2;
-        return (float) (f * f * f * 8.0 * 0.15);
-    }
-
-    private static float applyGCD(float angle, float previous) {
-        float gcd = gcd();
-        return previous + Math.round((angle - previous) / gcd) * gcd;
+    /** Градусов поворота на один отсчёт мыши при текущей чувствительности: 8·f³·0.15, f = чувствительность·0.6 + 0.2. */
+    private static float mouseCountDegrees() {
+        double f = mc.options.getMouseSensitivity().getValue() * 0.6 + 0.2;
+        return (float) (f * f * f * 8.0 * DEGREES_PER_UNIT);
     }
 }
