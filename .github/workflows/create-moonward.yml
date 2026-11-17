@@ -17,11 +17,11 @@ jobs:
       - name: Create folders
         run: |
           mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro
-          mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/trigger
+          mkdir -p src/main/java/ru/zov/implement/features/modules/combat/killaura/aimassist
           mkdir -p src/main/java/ru/zov/implement/features/modules/combat/command
 
           touch src/main/java/ru/zov/implement/features/modules/combat/killaura/neuro/.gitkeep
-          touch src/main/java/ru/zov/implement/features/modules/combat/killaura/trigger/.gitkeep
+          touch src/main/java/ru/zov/implement/features/modules/combat/killaura/aimassist/.gitkeep
           touch src/main/java/ru/zov/implement/features/modules/combat/command/.gitkeep
 
       - name: Commit and push
