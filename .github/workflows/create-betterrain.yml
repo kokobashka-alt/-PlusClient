@@ -1,0 +1,31 @@
+
+name: Create BetterRain Folder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-folder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create BetterRain folder
+        run: |
+          mkdir -p src/main/java/ru/zov/implement/features/modules/render/betterrain
+          touch src/main/java/ru/zov/implement/features/modules/render/betterrain/.gitkeep
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/main/java/ru/zov/implement/features/modules/render/betterrain/.gitkeep
+          git commit -m "Create BetterRain folder" || exit 0
+          git push
+          
