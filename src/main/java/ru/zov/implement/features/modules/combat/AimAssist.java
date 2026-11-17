@@ -23,36 +23,25 @@ import ru.zov.implement.events.player.TickEvent;
 import ru.zov.implement.features.modules.combat.aimassist.HumanAimModel;
 
 /**
- * AimAssist на формулах (см. {@link HumanAimModel}): добавка к собственному движению мыши игрока.
- *
- * <ul>
- *   <li>нет движения мыши — нет добавки; движение от цели не трогается;</li>
- *   <li>точка прицеливания не центр хитбокса, у каждой цели своя и она плавает;</li>
- *   <li>внутри полосы попадания ассист молчит, прицел не залипает; есть реакция, паузы и отдых;</li>
- *   <li>питч слабый, с потолком в градусах в секунду; всё идёт целыми шагами мыши;</li>
- *   <li>никаких обучаемых/записанных кривых: только формулы.</li>
- * </ul>
- *
- * Выбор цели: ближайшая к направлению взгляда в пределах конуса, смена цели только если новая заметно ближе.
+ * Улучшенный AimAssist с фокусом на хитбокс, мгновенный отклик и постоянное липкое удержание.
  */
 public class AimAssist extends Module {
-    /** Градусов на единицу дельты мыши в changeLookDirection. */
     private static final float DEGREES_PER_UNIT = 0.15F;
     private static final float MAX_FRAME_SECONDS = 0.05F;
-    private static final double SWITCH_RATIO = 0.65;
-    private static final double CANDIDATE_CONE_SCALE = 1.4;
-    private static final double LOSE_CONE_SCALE = 1.6;
+    private static final double SWITCH_RATIO = 0.75;
+    private static final double CANDIDATE_CONE_SCALE = 1.5;
+    private static final double LOSE_CONE_SCALE = 1.8;
 
     public final ValueSetting distance = new ValueSetting("Дистанция", "Максимальная дистанция цели")
-            .setValue(3.5f).range(1.0f, 8.0f);
+            .setValue(3.8f).range(1.0f, 8.0f);
     public final BooleanSetting onlyWeapon = new BooleanSetting("Только с оружием", "Работать только если в руке меч/топор")
             .setValue(false);
-    public final ValueSetting strength = new ValueSetting("Сила", "Сколько собственного движения мыши добавлять, %")
-            .setValue(55.0f).range(0.0f, 100.0f);
-    public final ValueSetting vertical = new ValueSetting("Вертикаль", "Сила помощи по питчу, % (слабая и с потолком)")
-            .setValue(20.0f).range(0.0f, 100.0f);
-    public final ValueSetting fov = new ValueSetting("FOV", "Ассист работает только внутри этого конуса, °")
-            .setValue(12.0f).range(4.0f, 40.0f);
+    public final ValueSetting strength = new ValueSetting("Сила", "Мощность доворота по горизонтали, %")
+            .setValue(65.0f).range(0.0f, 100.0f);
+    public final ValueSetting vertical = new ValueSetting("Вертикаль", "Мощность доворота по вертикали, %")
+            .setValue(40.0f).range(0.0f, 100.0f);
+    public final ValueSetting fov = new ValueSetting("FOV", "Угол работы ассиста, °")
+            .setValue(15.0f).range(4.0f, 45.0f);
 
     private final HumanAimModel model = new HumanAimModel(ThreadLocalRandom.current());
     private final HumanAimModel.Settings modelSettings = new HumanAimModel.Settings();
@@ -209,10 +198,10 @@ public class AimAssist extends Module {
         return best;
     }
 
-    /** Угол между направлением взгляда и нейтральной точкой верха туловища цели. */
+    /** Угол между взглядом и центром хитбокса цели */
     private double angleTo(LivingEntity entity) {
         Vec3d pos = entity.getEntityPos();
-        double[] point = HumanAimModel.neutralPoint(pos.x, pos.y, pos.z, entity.getHeight());
+        double[] point = {pos.x, pos.y + (entity.getHeight() * 0.5), pos.z};
         Vec3d dir = new Vec3d(point[0], point[1], point[2]).subtract(mc.player.getEyePos()).normalize();
         Vec3d look = mc.player.getRotationVec(1.0F);
         return Math.toDegrees(Math.acos(MathHelper.clamp(look.dotProduct(dir), -1.0, 1.0)));
@@ -234,7 +223,6 @@ public class AimAssist extends Module {
         return true;
     }
 
-    /** Градусов поворота на один отсчёт мыши при текущей чувствительности: 8·f³·0.15, f = чувствительность·0.6 + 0.2. */
     private static float mouseCountDegrees() {
         double f = mc.options.getMouseSensitivity().getValue() * 0.6 + 0.2;
         return (float) (f * f * f * 8.0 * DEGREES_PER_UNIT);
