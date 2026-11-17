@@ -179,7 +179,7 @@ public class ModuleRepository {
             new AntiTotem(),
             new OldCelestialHud(),
             new CrystalAura2(),
-            new HandShader(),
+            HandShader.getInstance(),
             new FakePlayer(),
             new BetterRain()
         );
