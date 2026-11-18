@@ -272,6 +272,10 @@ public final class ShardSc3RotationMode extends RotationMode {
             return current;
         }
 
+        // Aim from the view the player actually has now: current already contains our previous output plus the
+        // player's own mouse movement, so the mouse keeps working instead of being overwritten each tick.
+        this.yaw = MathHelper.wrapDegrees(current.getYaw());
+        this.pitch = current.getPitch();
         float out[] = this.aim(living, player);
         return new Rotation(out[0], out[1]);
     }
