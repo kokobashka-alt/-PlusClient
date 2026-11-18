@@ -637,7 +637,7 @@ public final class ShardSc3RotationMode extends RotationMode {
         BlockHitResult block = Mc.INSTANCE.getWorld().raycast(
             new RaycastContext(eye, point, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         return block.getType() == HitResult.Type.MISS
-            || eye.squaredDistanceTo(block.getEntityPos()) >= eye.squaredDistanceTo(point) - 1.0E-4;
+            || eye.squaredDistanceTo(block.getPos()) >= eye.squaredDistanceTo(point) - 1.0E-4;
     }
 
     private static double lerp(double t, double start, double end) {
