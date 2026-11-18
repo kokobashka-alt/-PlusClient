@@ -282,9 +282,9 @@ public final class ShardSc3RotationMode extends RotationMode {
 
         if (this.finalAdjust.isValue()) {
             Vec3d velocity = player.getVelocity();
-            double dx = living.getX() - living.prevX;
-            double dz = living.getZ() - living.prevZ;
-            double dy = living.getY() - living.prevY;
+            double dx = living.getX() - living.lastX;
+            double dz = living.getZ() - living.lastZ;
+            double dy = living.getY() - living.lastY;
             double dist = Math.max(1.0, eye.distanceTo(aimPoint));
             double k = Math.min(dist * 0.12, 0.35);
             aimPoint = aimPoint.add((dx - velocity.x) * k, (dy - velocity.y) * k * 0.5, (dz - velocity.z) * k);
@@ -542,9 +542,9 @@ public final class ShardSc3RotationMode extends RotationMode {
 
         Vec3d point;
         if (this.pointMode.currentValue() == PointMode.CHEST) {
-            point = living.getPos().add(0.0, living.getHeight() * 0.72, 0.0);
+            point = living.getEntityPos().add(0.0, living.getHeight() * 0.72, 0.0);
         } else if (this.pointMode.currentValue() == PointMode.HEAD) {
-            point = living.getPos().add(0.0, living.getHeight() * 0.92, 0.0);
+            point = living.getEntityPos().add(0.0, living.getHeight() * 0.92, 0.0);
         } else {
             Vec3d closest = nearestPointOnBox(living, player);
             point = visiblePoint(living, closest != null ? closest : living.getBoundingBox().getCenter(), this.attackDistance.currentValue());
@@ -637,7 +637,7 @@ public final class ShardSc3RotationMode extends RotationMode {
         BlockHitResult block = Mc.INSTANCE.getWorld().raycast(
             new RaycastContext(eye, point, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         return block.getType() == HitResult.Type.MISS
-            || eye.squaredDistanceTo(block.getPos()) >= eye.squaredDistanceTo(point) - 1.0E-4;
+            || eye.squaredDistanceTo(block.getEntityPos()) >= eye.squaredDistanceTo(point) - 1.0E-4;
     }
 
     private static double lerp(double t, double start, double end) {
@@ -804,8 +804,8 @@ public final class ShardSc3RotationMode extends RotationMode {
         double cz = box.minZ + box.getLengthZ() * 0.5;
         double cy = box.minY + box.getLengthY() * 0.68;
         Vec3d velocity = player.getVelocity();
-        double vx = (living.getX() - living.prevX - velocity.x) * 2.5 * speed;
-        double vz = (living.getZ() - living.prevZ - velocity.z) * 2.5 * speed;
+        double vx = (living.getX() - living.lastX - velocity.x) * 2.5 * speed;
+        double vz = (living.getZ() - living.lastZ - velocity.z) * 2.5 * speed;
         double limit = box.getLengthX() * 0.45;
         vx = MathHelper.clamp(vx, -limit, limit);
         vz = MathHelper.clamp(vz, -limit, limit);
