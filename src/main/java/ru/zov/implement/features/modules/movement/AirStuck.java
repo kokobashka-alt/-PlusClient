@@ -64,7 +64,7 @@ public class AirStuck extends Module {
    private Vec3d holdPos = Vec3d.ZERO;
    private Vec3d holdVelocity = Vec3d.ZERO;
    private Vec3d lastVelocity = Vec3d.ZERO;
-   private float holdFallDistance;
+   private double holdFallDistance;
    private long holdStart;
    private float sentYaw;
    private float sentPitch;
