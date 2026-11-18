@@ -576,7 +576,7 @@ public class FTHelper extends Module {
 
     private void restoreSprintKey() {
         sprintStopped = false;
-        mc.options.sprintKey.setPressed(InputUtil.isKeyPressed(mc.getWindow().getHandle(), mc.options.sprintKey.getDefaultKey().getCode()));
+        mc.options.sprintKey.setPressed(InputUtil.isKeyPressed(mc.getWindow(), mc.options.sprintKey.getDefaultKey().getCode()));
     }
 
     // ---- сопоставление зелий ----
