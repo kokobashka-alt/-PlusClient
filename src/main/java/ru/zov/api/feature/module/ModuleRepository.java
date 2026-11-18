@@ -89,6 +89,8 @@ import ru.zov.implement.features.modules.combat.CrystalAura2;
 import ru.zov.implement.features.modules.render.HandShader;
 import ru.zov.implement.features.modules.render.FakePlayer;
 import ru.zov.implement.features.modules.render.BetterRain;
+import ru.zov.implement.features.modules.combat.FTHelper;
+import ru.zov.implement.features.modules.combat.PacketMace;
 
 public class ModuleRepository {
     private final List<Module> modules = new ArrayList<>();
@@ -181,7 +183,9 @@ public class ModuleRepository {
             new CrystalAura2(),
             HandShader.getInstance(),
             new FakePlayer(),
-            new BetterRain()
+            new BetterRain(),
+            new FTHelper(),
+            new PacketMace()
         );
     }
 
