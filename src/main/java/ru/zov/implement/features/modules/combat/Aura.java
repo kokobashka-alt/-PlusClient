@@ -73,6 +73,7 @@ import ru.zov.implement.features.modules.combat.killaura.event.UseItemEvent;
 import ru.zov.implement.features.modules.combat.killaura.type.MlsRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.NeuroRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.ShardRotationMode;
+import ru.zov.implement.features.modules.combat.killaura.type.ShardSc3RotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.ShardNanoRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.SpookyTimeNoiseRotationMode;
 import ru.zov.implement.features.modules.combat.killaura.type.PolarSnapRotationMode;
@@ -167,6 +168,7 @@ public final class Aura extends Module {
     private final MlsRotationMode mlsRotationMode = new MlsRotationMode();
     private final NeuroRotationMode neuroRotationMode = new NeuroRotationMode();
     private final ShardRotationMode shardRotationMode = new ShardRotationMode();
+    private final ShardSc3RotationMode shardSc3RotationMode = new ShardSc3RotationMode();
     private final ShardNanoRotationMode shard2RotationMode = new ShardNanoRotationMode();
     private final SpookyTimeNoiseRotationMode spookyNoiseRotationMode = new SpookyTimeNoiseRotationMode();
     private final PolarSnapRotationMode polarSnapRotationMode = new PolarSnapRotationMode();
@@ -312,6 +314,7 @@ public final class Aura extends Module {
         this.visualSprintPose = EntityPose.STANDING;
 
         addSettings(this.rotationMode, this.targetTypes, this.sortModes, this.moveCorrectionMode, this.rotationReturn, this.extraDistance, this.maxDistance, this.autoMace, this.autoMaceHeight, this.maxDamage, this.maxDamageItem, this.onlyCriticalHit, this.critsWithSpace, this.keepSprintWhenPossible, this.ignoreWalls, this.ignoreNaked, this.noHitWhileEatingOffhand, this.unpressShield, this.breakShield, this.tpsSync, this.fovSize, this.drawFovCircle, this.shardMinMinutes, this.shardMaxMinutes);
+        addSettings(this.shardSc3RotationMode.settings());
 
         register(UseItemEvent.class, class059Var -> {
             if (isState() && this.mc.isWorldLoaded() && this.target != null && canCrit(this.mc.getPlayer(), 0)) {
@@ -422,6 +425,7 @@ public final class Aura extends Module {
         if (selectedMode != this.observedRotationMode) {
             if (selectedMode == AuraRotationMode.SHARD || this.observedRotationMode == AuraRotationMode.SHARD) {
                 this.shardRotationMode.reset();
+                this.shardSc3RotationMode.reset();
             }
             if (selectedMode == AuraRotationMode.SHARD_2 || this.observedRotationMode == AuraRotationMode.SHARD_2) {
                 this.shard2RotationMode.reset();
@@ -663,6 +667,7 @@ public final class Aura extends Module {
         RotationManager.INSTANCE.cancelTasksFor(this);
         this.auraRotationActive = false;
         this.shardRotationMode.reset();
+        this.shardSc3RotationMode.reset();
         this.shard2RotationMode.reset();
         this.spookyTimeRotationMode.reset();
         clearMacePreparation(player, true);
@@ -754,6 +759,7 @@ public final class Aura extends Module {
             case MLS -> this.mlsRotationMode;
             case NEURO -> this.neuroRotationMode;
             case SHARD -> this.shardRotationMode;
+            case SHARD_SC3 -> this.shardSc3RotationMode;
             case SHARD_2 -> this.shard2RotationMode;
             case SPOOKY_NOISE -> this.spookyNoiseRotationMode;
             case POLAR_SNAP -> this.polarSnapRotationMode;
